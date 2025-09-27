@@ -274,6 +274,9 @@ python extract-db-objects.py
 DBADHOCDIRECTORY=hotfix-scripts/ python extract-db-objects.py --format markdown --output db_objects.md
 ```
 
+![vivaldi_KLUI6zddbB](https://github.com/user-attachments/assets/028c96c8-7e3d-4f00-a3fc-bf4ebc78dbe7)
+
+
 #### Output Information
 
 The script provides:
