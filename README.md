@@ -7,6 +7,8 @@ A collection of database migration orchestration and management tools, currently
 ```
 debee/
 ├── README.md                 # This file
+├── debee/
+│   └── version_table_template.html # Interactive HTML template
 └── postgresql/               # PostgreSQL-specific tools
     ├── debee.ps1            # Migration orchestrator script
     ├── extract-db-objects.py # Database object extractor
@@ -116,6 +118,11 @@ DBADHOCDIRECTORY=ad-hoc-scripts/
 # Migration range (optional)
 DBUPDATESTARTNUMBER=1
 DBUPDATEENDNUMBER=100
+
+# Version table configuration
+DBVERSIONTABLEFORMATS=json;md;html    # Semicolon-separated export formats
+DBVERSIONTABLEOUTPUTFOLDER=.          # Output directory for version table files
+DBVERSIONTABLEFILENAME=db-objects     # Base filename (extensions added automatically)
 ```
 
 #### Migration File Naming Convention
@@ -152,6 +159,69 @@ The orchestrator includes integrated database object documentation generation th
 
 This operation leverages the database object extractor to provide a consolidated view of your database structure, making it invaluable for database maintenance, auditing, and team onboarding.
 
+#### Interactive HTML Dashboard (NEW in v3.0.0)
+
+Debee now provides a powerful interactive HTML dashboard for database object analysis, offering a professional, responsive interface that goes far beyond static documentation.
+
+**Setup:**
+1. Ensure the template is available in your project:
+   ```bash
+   mkdir -p debee
+   cp debee/version_table_template.html debee/
+   ```
+
+2. Configure HTML output in your environment file:
+   ```bash
+   DBVERSIONTABLEFORMATS=json;md;html
+   ```
+
+3. Generate the interactive dashboard:
+   ```bash
+   ./debee.sh -o prepareVersionTable
+   ```
+
+**🎯 Advanced Features:**
+
+**Professional UI Design:**
+- **Audi-inspired aesthetics**: Clean, sophisticated design suitable for enterprise environments
+- **Responsive architecture**: Seamless experience from desktop to mobile devices
+- **Icon-based controls**: UTF-8 symbols for universal compatibility and touch-friendly interaction
+
+**Real-time Filtering System (8 Independent Filters):**
+- **Schema Filter**: Text search for specific schemas
+- **Object Name Filter**: Find objects by name pattern
+- **Object Type Filter**: Dropdown with all detected types (table, function, view, etc.)
+- **Operation Filter**: Filter by database operations (CREATE, ALTER, DROP, CREATE_OR_REPLACE)
+- **Last File Filter**: Search for specific migration files
+- **Migration Updates Filter**: Find objects modified by specific migration scripts
+- **Ad-hoc Updates Filter**: Track emergency/hotfix modifications
+- **Update Count Filter**: Find frequently modified objects (minimum threshold)
+
+**Enhanced Data Visualization:**
+- **File:Line:Operation format**: Precise location and operation type for every change
+- **Color-coded object types**: Visual distinction for quick identification
+- **Clickable elements**: Click any data point to instantly filter results
+- **Complete change history**: Full migration and ad-hoc update tracking per object
+
+**Mobile-First Responsive Design:**
+- **Card-based mobile layout**: Touch-optimized interface for phones and tablets
+- **Adaptive breakpoints**: 4 responsive layouts for different screen sizes
+- **Natural scrolling**: Mobile-friendly infinite scroll instead of constrained containers
+- **Filter toggle**: Show/hide filters on mobile to maximize content viewing space
+
+**Smart Interface Features:**
+- **Local storage preferences**: Layout settings persist across sessions and files
+- **Dynamic height management**: Optimized viewport utilization (55vh with filters, 72vh without)
+- **Conditional ad-hoc support**: Interface automatically adapts if no ad-hoc scripts are present
+- **Real-time statistics**: Live updates showing filtered vs total object counts
+
+**Professional Controls:**
+- **Layout toggle**: Switch between contained (◧) and full-width (◨) modes
+- **Filter visibility**: Show (▼) or hide (▲) filter panel for maximum data viewing
+- **Consistent positioning**: Right-aligned controls across all device sizes
+
+The HTML dashboard transforms database documentation from static tables into an interactive analysis platform, making it invaluable for schema evolution tracking, database auditing, team collaboration, and project onboarding.
+
 ### 2. PostgreSQL Database Object Extractor (`postgresql/extract-db-objects.py`)
 
 A Python script that analyzes SQL migration files to extract and track PostgreSQL database objects (tables, functions, indexes, etc.) across all migrations.
@@ -178,6 +248,7 @@ python extract-db-objects.py [--format {json,csv,markdown}] [--output <file>]
   - `json`: JSON format with full details
   - `csv`: CSV format for spreadsheet import
   - `markdown`: Markdown table for documentation
+  - `html`: Interactive HTML with filtering (requires template)
 
 - **--output**: Output file path (default: stdout)
 
@@ -192,6 +263,9 @@ python extract-db-objects.py --format csv --output db_objects.csv
 
 # Create Markdown documentation
 python extract-db-objects.py --format markdown --output DB_OBJECTS.md
+
+# Generate interactive HTML (requires debee/version_table_template.html)
+python extract-db-objects.py --format html --output db_objects.html
 
 # Display JSON to console
 python extract-db-objects.py
@@ -278,15 +352,15 @@ The script provides:
 
 ```
 my-project/
-├── postgresql/
-│   ├── debee.ps1                 # Orchestrator script
-│   ├── extract-db-objects.py     # Object extraction script
-│   ├── debee.env                 # Environment configuration
-│   ├── .debee.env               # Local overrides (git-ignored)
-│   ├── 001_init.sql             # Migration files
-│   ├── 002_tables.sql
-│   ├── 003_functions.sql
-│   └── ...
+├── debee/
+│   └── version_table_template.html # HTML template for interactive reports
+├── debee.env                    # Environment configuration
+├── .debee.env                   # Local overrides (git-ignored)
+├── debee.py                     # Orchestrator script (copied from postgresql/)
+├── extract-db-objects.py       # Object extraction script (copied from postgresql/)
+├── 001_init.sql                # Migration files
+├── 002_tables.sql
+├── 003_functions.sql
 ├── scripts/
 │   └── recreate_database.sql   # Database recreation logic
 ├── backups/

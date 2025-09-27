@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Objects Version Table</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            padding: 20px;
+            color: #2c2c2c;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 2px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            transition: max-width 0.3s ease;
+        }
+
+        .container.fluid {
+            max-width: none;
+            margin: 0 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1a1a1a 0%, #333333 100%);
+            color: white;
+            padding: 32px;
+            text-align: left;
+            border-bottom: 3px solid #d32f2f;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-bottom {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .header-left {
+            flex: 1;
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+            font-weight: 400;
+            letter-spacing: 0.5px;
+        }
+
+        .subtitle {
+            opacity: 0.85;
+            font-size: 1rem;
+            font-weight: 300;
+        }
+
+        .header-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: flex-end;
+            text-align: right;
+        }
+
+        .header-stat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 20px;
+        }
+
+        .header-stat-value {
+            font-size: 1.2rem;
+            font-weight: 300;
+            color: white;
+            min-width: 40px;
+        }
+
+        .header-stat-label {
+            font-size: 0.65rem;
+            color: rgba(255, 255, 255, 0.7);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 400;
+            white-space: nowrap;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .icon-button {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            width: 32px;
+            height: 32px;
+            border-radius: 2px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        .icon-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .filter-toggle {
+            display: flex;
+        }
+
+        .filters-container.hidden {
+            display: none;
+        }
+
+        .filters-container.hidden + .table-container,
+        .filters-container.hidden + .card-layout {
+            margin-top: 24px;
+        }
+
+        .filters-container {
+            background: #fafafa;
+            padding: 24px 32px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .filters-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-group label {
+            font-size: 0.8rem;
+            color: #666666;
+            margin-bottom: 6px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .filter-input-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            padding: 10px 35px 10px 14px;
+            border: 1px solid #cccccc;
+            border-radius: 1px;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            flex: 1;
+            background: white;
+        }
+
+        .clear-filter-btn {
+            position: absolute;
+            right: 8px;
+            background: none;
+            border: none;
+            font-size: 14px;
+            color: #6c757d;
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 3px;
+            transition: all 0.2s;
+            display: none;
+        }
+
+        .clear-filter-btn:hover {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .filter-input-container:hover .clear-filter-btn,
+        .filter-input-container input:focus + .clear-filter-btn,
+        .filter-input-container select:focus + .clear-filter-btn {
+            display: block;
+        }
+
+        .filter-input-container input:not(:placeholder-shown) + .clear-filter-btn,
+        .filter-input-container select:not([value=""]) + .clear-filter-btn {
+            display: block;
+        }
+
+        /* Show clear button when select has a value */
+        .filter-input-container select:not(:invalid) + .clear-filter-btn {
+            display: block;
+        }
+
+        .filter-group input:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: #d32f2f;
+            box-shadow: 0 0 0 2px rgba(211, 47, 47, 0.1);
+        }
+
+        .filter-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 1px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .btn-primary {
+            background: #d32f2f;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #b71c1c;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #666666;
+            border: 1px solid #cccccc;
+        }
+
+        .btn-secondary:hover {
+            background: #eeeeee;
+            border-color: #999999;
+        }
+
+
+        .table-container {
+            overflow-x: auto;
+            height: calc(55vh);
+            position: relative;
+        }
+
+        .filters-container.hidden + .table-container {
+            height: calc(72vh);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 10;
+        }
+
+        th {
+            background: #f5f5f5;
+            padding: 16px 14px;
+            text-align: left;
+            font-weight: 500;
+            color: #2c2c2c;
+            border-bottom: 1px solid #cccccc;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+
+        th:hover {
+            background: #eeeeee;
+        }
+
+        th.sortable:after {
+            content: '⇅';
+            position: absolute;
+            right: 8px;
+            opacity: 0.3;
+        }
+
+        th.sorted-asc:after {
+            content: '↑';
+            opacity: 1;
+        }
+
+        th.sorted-desc:after {
+            content: '↓';
+            opacity: 1;
+        }
+
+        td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 0.85rem;
+        }
+
+        tbody tr {
+            transition: background 0.15s ease;
+        }
+
+        tbody tr:hover {
+            background: #fafafa;
+        }
+
+        .clickable-text {
+            cursor: pointer;
+            position: relative;
+            transition: all 0.15s ease;
+            padding: 3px 6px;
+            border-radius: 1px;
+            display: inline-block;
+        }
+
+        .clickable-text:hover {
+            background: #f5f5f5;
+            color: #d32f2f;
+            text-decoration: none;
+        }
+
+        .clickable-text:hover::after {
+            content: "Click to filter";
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2c2c2c;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 1px;
+            font-size: 0.7rem;
+            white-space: nowrap;
+            z-index: 1000;
+            pointer-events: none;
+            font-weight: 400;
+        }
+
+        .object-type {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 1px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .type-table { background: #e8eaf6; color: #3f51b5; }
+        .type-function { background: #f3e5f5; color: #9c27b0; }
+        .type-procedure { background: #fce4ec; color: #e91e63; }
+        .type-index { background: #fff3e0; color: #ff9800; }
+        .type-view { background: #e8f5e8; color: #4caf50; }
+        .type-trigger { background: #fff8e1; color: #ffc107; }
+        .type-schema { background: #e0f2f1; color: #009688; }
+
+        .update-list {
+            max-height: 80px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+            line-height: 1.4;
+            padding: 4px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .update-item {
+            margin: 2px 0;
+            padding: 2px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .update-item:last-child {
+            border-bottom: none;
+        }
+
+        /* Card Layout for Mobile */
+        .card-layout {
+            display: none;
+        }
+
+        .object-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 2px;
+            margin-bottom: 12px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .card-title-line {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .card-title {
+            font-weight: 500;
+            font-size: 1rem;
+            color: #2c2c2c;
+        }
+
+        .card-schema {
+            font-size: 1rem;
+            color: #666666;
+            font-weight: 400;
+        }
+
+        .card-type {
+            font-size: 0.75rem;
+        }
+
+        .card-body {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            font-size: 0.8rem;
+        }
+
+        .card-field {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-field.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .card-label {
+            font-weight: 500;
+            color: #666666;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 0.7rem;
+        }
+
+        .card-value {
+            color: #2c2c2c;
+            word-break: break-word;
+        }
+
+        .card-updates {
+            max-height: 60px;
+            overflow-y: auto;
+            font-size: 0.75rem;
+            line-height: 1.3;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-style: italic;
+        }
+
+        .highlight {
+            background: #fff3cd;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+
+        footer {
+            background: #fafafa;
+            padding: 20px 32px;
+            text-align: center;
+            color: #999999;
+            font-size: 0.8rem;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        @media (max-width: 1200px) {
+            .filters-row {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 992px) {
+            .filters-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .header-stats {
+                gap: 16px;
+            }
+
+            .header-stat {
+                min-width: 80px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .filters-row {
+                grid-template-columns: 1fr;
+            }
+
+            header {
+                padding: 8px;
+                gap: 8px;
+            }
+
+            .header-top {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0;
+            }
+
+            .header-left {
+                flex: none;
+                width: 100%;
+            }
+
+            .header-bottom {
+                justify-content: flex-end;
+            }
+
+            .subtitle {
+                display: none;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+                margin-bottom: 0;
+            }
+
+            .header-stats {
+                display: none;
+            }
+
+            .header-buttons {
+                margin-top: 8px;
+                gap: 6px;
+            }
+
+
+            /* Switch to card layout on mobile */
+            .table-container {
+                display: none;
+            }
+
+            .card-layout {
+                display: block;
+                padding: 0 4px;
+            }
+        }
+
+        @media (max-width: 576px) {
+            body {
+                padding: 10px;
+            }
+
+            body:has(.container.fluid) {
+                padding: 0;
+            }
+
+            .container.fluid {
+                margin: 0;
+            }
+
+            .filters-container {
+                padding: 16px 20px;
+            }
+
+            .container.fluid .filters-container {
+                padding: 16px 8px;
+            }
+
+            .container.fluid header {
+                padding: 8px;
+            }
+
+            .header-stats {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .header-stat {
+                min-width: 60px;
+            }
+
+            .header-stat-value {
+                font-size: 1.2rem;
+            }
+
+            .filter-actions {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-top">
+                <div class="header-left">
+                    <h1>Database Objects Version Table</h1>
+                    <div class="subtitle">Track and analyze database schema changes</div>
+                </div>
+                <div class="header-stats">
+                    <div class="header-stat">
+                        <div class="header-stat-label">Objects</div>
+                        <div class="header-stat-value" id="headerObjects">0/0</div>
+                    </div>
+                    <div class="header-stat">
+                        <div class="header-stat-label">Updates</div>
+                        <div class="header-stat-value" id="headerUpdates">0</div>
+                    </div>
+                    <div class="header-stat">
+                        <div class="header-stat-label">Schemas</div>
+                        <div class="header-stat-value" id="headerSchemas">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="header-bottom">
+                <div class="header-buttons">
+                    <button class="icon-button" onclick="toggleLayout()" id="layoutToggle" title="Toggle Full Width">◧</button>
+                    <button class="icon-button filter-toggle" onclick="toggleFilters()" id="filterToggle" title="Hide Filters">▲</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="filters-container">
+            <div class="filters-row">
+                <div class="filter-group">
+                    <label for="schemaFilter">Schema</label>
+                    <div class="filter-input-container">
+                        <input type="text" id="schemaFilter" placeholder="Filter by schema...">
+                        <button class="clear-filter-btn" onclick="clearFilter('schemaFilter')" title="Clear filter">✕</button>
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label for="nameFilter">Object Name</label>
+                    <div class="filter-input-container">
+                        <input type="text" id="nameFilter" placeholder="Filter by name...">
+                        <button class="clear-filter-btn" onclick="clearFilter('nameFilter')" title="Clear filter">✕</button>
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label for="typeFilter">Object Type</label>
+                    <div class="filter-input-container">
+                        <select id="typeFilter">
+                            <option value="">All Types</option>
+                        </select>
+                        <button class="clear-filter-btn" onclick="clearFilter('typeFilter')" title="Clear filter">✕</button>
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label for="operationFilter">Operation</label>
+                    <div class="filter-input-container">
+                        <select id="operationFilter">
+                            <option value="">All Operations</option>
+                        </select>
+                        <button class="clear-filter-btn" onclick="clearFilter('operationFilter')" title="Clear filter">✕</button>
+                    </div>
+                </div>
+            </div>
+            <div class="filters-row">
+                <div class="filter-group">
+                    <label for="fileFilter">Last File</label>
+                    <div class="filter-input-container">
+                        <input type="text" id="fileFilter" placeholder="Filter by file...">
+                        <button class="clear-filter-btn" onclick="clearFilter('fileFilter')" title="Clear filter">✕</button>
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label for="migrationFilter">Migration Updates</label>
+                    <div class="filter-input-container">
+                        <input type="text" id="migrationFilter" placeholder="Filter migration updates...">
+                        <button class="clear-filter-btn" onclick="clearFilter('migrationFilter')" title="Clear filter">✕</button>
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label for="adhocFilter">Ad-hoc Updates</label>
+                    <div class="filter-input-container">
+                        <input type="text" id="adhocFilter" placeholder="Filter ad-hoc updates...">
+                        <button class="clear-filter-btn" onclick="clearFilter('adhocFilter')" title="Clear filter">✕</button>
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label for="updateCountFilter">Min Update Count</label>
+                    <div class="filter-input-container">
+                        <input type="number" id="updateCountFilter" min="0" placeholder="Minimum updates...">
+                        <button class="clear-filter-btn" onclick="clearFilter('updateCountFilter')" title="Clear filter">✕</button>
+                    </div>
+                </div>
+            </div>
+            <div class="filter-actions">
+                <button class="btn btn-primary" onclick="applyFilters()">Apply Filters</button>
+                <button class="btn btn-secondary" onclick="clearFilters()">Clear All</button>
+                <button class="btn btn-secondary" onclick="exportFiltered()">Export Filtered</button>
+            </div>
+        </div>
+
+
+        <div class="table-container">
+            <table id="dataTable">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-column="schema">Schema</th>
+                        <th class="sortable" data-column="object_name">Object Name</th>
+                        <th class="sortable" data-column="object_type">Type</th>
+                        <th class="sortable" data-column="last_file">Last File:Line:Operation</th>
+                        <th class="sortable" data-column="update_count">Updates</th>
+                        <th>Migration Updates</th>
+                        <th>Ad-hoc Updates</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Data will be inserted here -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-layout" id="cardLayout">
+            <!-- Cards will be inserted here -->
+        </div>
+
+        <footer>
+            <div>Generated: <span id="generatedDate"></span></div>
+            <div>Database Objects Version Table - Powered by Debee</div>
+        </footer>
+    </div>
+
+    <script>
+        // Global data storage
+        let tableData = [];
+        let filteredData = [];
+        let currentSort = { column: null, direction: 'asc' };
+        let hasAdhocUpdates = false;
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set generation date
+            document.getElementById('generatedDate').textContent = new Date().toLocaleString();
+
+            // Load saved layout preference
+            loadLayoutPreference();
+
+            // Load data - this will be replaced by actual data
+            loadData();
+
+            // Setup event listeners
+            setupEventListeners();
+
+            // Apply initial display
+            updateDisplay();
+
+            // Hide ad-hoc elements if no ad-hoc data
+            updateAdhocVisibility();
+        });
+
+        function loadData() {
+            // This placeholder will be replaced with actual data during generation
+            // <!-- DATA_PLACEHOLDER -->
+
+            // For now, using empty array
+            tableData = [];
+            filteredData = [...tableData];
+            hasAdhocUpdates = false;
+        }
+
+        function setupEventListeners() {
+            // Add sorting to table headers
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.addEventListener('click', function() {
+                    sortTable(this.dataset.column);
+                });
+            });
+
+            // Add real-time filtering on input - conditionally include adhocFilter
+            const filterInputIds = ['schemaFilter', 'nameFilter', 'fileFilter', 'migrationFilter'];
+            if (hasAdhocUpdates) {
+                filterInputIds.push('adhocFilter');
+            }
+
+            filterInputIds.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('input', debounce(applyFilters, 300));
+                }
+            });
+
+            // Add change listeners for select and number inputs
+            document.getElementById('typeFilter').addEventListener('change', applyFilters);
+            document.getElementById('operationFilter').addEventListener('change', applyFilters);
+            document.getElementById('updateCountFilter').addEventListener('input', debounce(applyFilters, 300));
+
+            // Handle clear button visibility for all filter inputs
+            const filterElements = document.querySelectorAll('.filter-input-container input, .filter-input-container select');
+            filterElements.forEach(input => {
+                input.addEventListener('input', updateClearButtonVisibility);
+                input.addEventListener('change', updateClearButtonVisibility);
+            });
+        }
+
+        function updateAdhocVisibility() {
+            const adhocFilterGroup = document.querySelector('.filter-group:has(#adhocFilter)');
+            const adhocHeaders = document.querySelectorAll('th:last-child');
+
+            if (!hasAdhocUpdates) {
+                // Hide ad-hoc filter
+                if (adhocFilterGroup) {
+                    adhocFilterGroup.style.display = 'none';
+                }
+
+                // Hide ad-hoc column header
+                adhocHeaders.forEach(th => {
+                    if (th.textContent.includes('Ad-hoc')) {
+                        th.style.display = 'none';
+                    }
+                });
+            }
+        }
+
+        function updateDisplay() {
+            populateTypeFilter();
+            populateOperationFilter();
+            renderTable();
+            updateStats();
+        }
+
+        function populateTypeFilter() {
+            const types = [...new Set(tableData.map(row => row.object_type))].sort();
+            const select = document.getElementById('typeFilter');
+            select.innerHTML = '<option value="">All Types</option>';
+            types.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+                select.appendChild(option);
+            });
+        }
+
+        function populateOperationFilter() {
+            const operations = [...new Set(tableData.map(row => row.last_operation).filter(op => op))].sort();
+            const select = document.getElementById('operationFilter');
+            select.innerHTML = '<option value="">All Operations</option>';
+            operations.forEach(operation => {
+                const option = document.createElement('option');
+                option.value = operation;
+                option.textContent = operation;
+                select.appendChild(option);
+            });
+        }
+
+        function applyFilters() {
+            const schemaFilter = document.getElementById('schemaFilter').value.toLowerCase();
+            const nameFilter = document.getElementById('nameFilter').value.toLowerCase();
+            const typeFilter = document.getElementById('typeFilter').value;
+            const operationFilter = document.getElementById('operationFilter').value;
+            const fileFilter = document.getElementById('fileFilter').value.toLowerCase();
+            const migrationFilter = document.getElementById('migrationFilter').value.toLowerCase();
+            const adhocFilter = hasAdhocUpdates ? document.getElementById('adhocFilter').value.toLowerCase() : '';
+            const updateCountFilter = parseInt(document.getElementById('updateCountFilter').value) || 0;
+
+            filteredData = tableData.filter(row => {
+                // Schema filter
+                if (schemaFilter && !row.schema.toLowerCase().includes(schemaFilter)) return false;
+
+                // Name filter
+                if (nameFilter && !row.object_name.toLowerCase().includes(nameFilter)) return false;
+
+                // Type filter
+                if (typeFilter && row.object_type !== typeFilter) return false;
+
+                // Operation filter
+                if (operationFilter && row.last_operation !== operationFilter) return false;
+
+                // File filter
+                if (fileFilter && !row.last_file.toLowerCase().includes(fileFilter)) return false;
+
+                // Migration updates filter
+                if (migrationFilter && !row.migration_updates.toLowerCase().includes(migrationFilter)) return false;
+
+                // Ad-hoc updates filter
+                if (adhocFilter && !row.adhoc_updates.toLowerCase().includes(adhocFilter)) return false;
+
+                // Update count filter
+                if (updateCountFilter > 0 && row.update_count < updateCountFilter) return false;
+
+                return true;
+            });
+
+            renderTable();
+            updateStats();
+        }
+
+        function clearFilters() {
+            document.getElementById('schemaFilter').value = '';
+            document.getElementById('nameFilter').value = '';
+            document.getElementById('typeFilter').value = '';
+            document.getElementById('operationFilter').value = '';
+            document.getElementById('fileFilter').value = '';
+            document.getElementById('migrationFilter').value = '';
+            if (hasAdhocUpdates) {
+                document.getElementById('adhocFilter').value = '';
+            }
+            document.getElementById('updateCountFilter').value = '';
+
+            filteredData = [...tableData];
+            renderTable();
+            updateStats();
+        }
+
+        function sortTable(column) {
+            // Update sort direction
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = column;
+                currentSort.direction = 'asc';
+            }
+
+            // Sort the filtered data
+            filteredData.sort((a, b) => {
+                let aVal = a[column];
+                let bVal = b[column];
+
+                // Handle numeric sorting for update_count and last_line
+                if (column === 'update_count' || column === 'last_line') {
+                    aVal = parseInt(aVal) || 0;
+                    bVal = parseInt(bVal) || 0;
+                }
+
+                if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+                if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            // Update header classes
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.classList.remove('sorted-asc', 'sorted-desc');
+            });
+            const sortedTh = document.querySelector(`th[data-column="${column}"]`);
+            if (sortedTh) {
+                sortedTh.classList.add(`sorted-${currentSort.direction}`);
+            }
+
+            renderTable();
+        }
+
+        function renderTable() {
+            renderTableView();
+            renderCardView();
+        }
+
+        function renderTableView() {
+            const tbody = document.getElementById('tableBody');
+
+            const colSpan = hasAdhocUpdates ? 7 : 6;
+            if (filteredData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="${colSpan}" class="no-data">No matching objects found</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filteredData.map(row => {
+                const adhocColumn = hasAdhocUpdates ?
+                    `<td>${formatUpdateList(row.adhoc_updates, 'adhocFilter')}</td>` : '';
+
+                return `
+                <tr>
+                    <td><span class="clickable-text" onclick="filterByValue('schemaFilter', '${escapeHtml(row.schema)}')">${highlightText(row.schema)}</span></td>
+                    <td><span class="clickable-text" onclick="filterByValue('nameFilter', '${escapeHtml(row.object_name)}')">${highlightText(row.object_name)}</span></td>
+                    <td><span class="clickable-text" onclick="filterByValue('typeFilter', '${escapeHtml(row.object_type)}')"><span class="object-type type-${row.object_type}">${row.object_type}</span></span></td>
+                    <td><span class="clickable-text" onclick="filterByValue('fileFilter', '${escapeHtml(row.last_file)}')">${highlightText(row.last_file)}:${row.last_line}:${row.last_operation || 'UNKNOWN'}</span></td>
+                    <td><span class="clickable-text" onclick="filterByValue('updateCountFilter', '${row.update_count}')">${row.update_count}</span></td>
+                    <td>${formatUpdateList(row.migration_updates, 'migrationFilter')}</td>
+                    ${adhocColumn}
+                </tr>`;
+            }).join('');
+        }
+
+        function renderCardView() {
+            const cardContainer = document.getElementById('cardLayout');
+
+            if (filteredData.length === 0) {
+                cardContainer.innerHTML = '<div class="no-data">No matching objects found</div>';
+                return;
+            }
+
+            cardContainer.innerHTML = filteredData.map(row => {
+                const adhocSection = hasAdhocUpdates && row.adhoc_updates !== '-' ? `
+                    <div class="card-field full-width">
+                        <div class="card-label">Ad-hoc Updates</div>
+                        <div class="card-value card-updates">${formatUpdateListPlain(row.adhoc_updates)}</div>
+                    </div>
+                ` : '';
+
+                return `
+                <div class="object-card">
+                    <div class="card-header">
+                        <div class="card-title-line">
+                            <div class="card-title">
+                                <span class="clickable-text" onclick="filterByValue('nameFilter', '${escapeHtml(row.object_name)}')">${row.object_name}</span>
+                            </div>
+                            <div class="card-schema">
+                                [<span class="clickable-text" onclick="filterByValue('schemaFilter', '${escapeHtml(row.schema)}')">${row.schema}</span>]
+                            </div>
+                        </div>
+                        <span class="clickable-text card-type" onclick="filterByValue('typeFilter', '${escapeHtml(row.object_type)}')">
+                            <span class="object-type type-${row.object_type}">${row.object_type}</span>
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <div class="card-field">
+                            <div class="card-label">Last File</div>
+                            <div class="card-value">
+                                <span class="clickable-text" onclick="filterByValue('fileFilter', '${escapeHtml(row.last_file)}')">${row.last_file}:${row.last_line}:${row.last_operation || 'UNKNOWN'}</span>
+                            </div>
+                        </div>
+                        <div class="card-field">
+                            <div class="card-label">Updates</div>
+                            <div class="card-value">
+                                <span class="clickable-text" onclick="filterByValue('updateCountFilter', '${row.update_count}')">${row.update_count}</span>
+                            </div>
+                        </div>
+                        <div class="card-field full-width">
+                            <div class="card-label">Migration Updates</div>
+                            <div class="card-value card-updates">${formatUpdateListPlain(row.migration_updates)}</div>
+                        </div>
+                        ${adhocSection}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function formatUpdateListPlain(updates) {
+            if (!updates || updates === '-') return '-';
+
+            const items = updates.split('<br>').filter(u => u);
+            if (items.length === 0) return '-';
+
+            return items.map(item => {
+                const parts = item.split(':');
+                const filename = parts.length > 0 ? parts[0].trim() : item.trim();
+                return `<span class="clickable-text" onclick="filterByValue('migrationFilter', '${escapeHtml(filename)}')">${item}</span>`;
+            }).join('<br>');
+        }
+
+        function formatUpdateList(updates, filterId) {
+            if (!updates || updates === '-') return '-';
+
+            const items = updates.split('<br>').filter(u => u);
+            if (items.length === 0) return '-';
+
+            return `<div class="update-list">${items.map(item => {
+                // Extract just the filename from the item, removing line numbers and operations
+                // Handle formats like "script.sql:123:CREATE" or "script.sql:123:ALTER"
+                let filename = item.trim();
+
+                // Split by colon and take the first part (filename)
+                const parts = filename.split(':');
+                if (parts.length > 0) {
+                    filename = parts[0].trim();
+                }
+
+                // Remove (line xxx) pattern if it exists
+                const match = filename.match(/^([^(]+)/);
+                if (match) {
+                    filename = match[1].trim();
+                }
+
+                return `<div class="update-item">
+                    <span class="clickable-text" onclick="filterByValue('${filterId}', '${escapeHtml(filename)}')">${item}</span>
+                </div>`;
+            }).join('')}</div>`;
+        }
+
+        function highlightText(text) {
+            // Add highlighting for search terms if needed
+            return text;
+        }
+
+        function updateStats() {
+            document.getElementById('headerObjects').textContent = `${filteredData.length}/${tableData.length}`;
+
+            const totalUpdates = tableData.reduce((sum, row) => sum + row.update_count, 0);
+            document.getElementById('headerUpdates').textContent = totalUpdates;
+
+            const schemas = [...new Set(tableData.map(row => row.schema))];
+            document.getElementById('headerSchemas').textContent = schemas.length;
+        }
+
+        function exportFiltered() {
+            const csvContent = generateCSV(filteredData);
+            downloadCSV(csvContent, 'filtered_database_objects.csv');
+        }
+
+        function generateCSV(data) {
+            const headers = ['Schema', 'Object Name', 'Type', 'Last File', 'Line', 'Updates', 'Migration Updates', 'Ad-hoc Updates'];
+            const rows = data.map(row => [
+                row.schema,
+                row.object_name,
+                row.object_type,
+                row.last_file,
+                row.last_line,
+                row.update_count,
+                row.migration_updates.replace(/<br>/g, '; '),
+                row.adhoc_updates.replace(/<br>/g, '; ')
+            ]);
+
+            const csvRows = [headers, ...rows].map(row =>
+                row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+            );
+
+            return csvRows.join('\n');
+        }
+
+        function downloadCSV(content, filename) {
+            const blob = new Blob([content], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        function clearFilter(filterId) {
+            const filterElement = document.getElementById(filterId);
+            if (filterElement) {
+                filterElement.value = '';
+                applyFilters();
+            }
+        }
+
+        function filterByValue(filterId, value) {
+            const filterElement = document.getElementById(filterId);
+            if (filterElement) {
+                filterElement.value = value;
+                applyFilters();
+
+                // Add visual feedback
+                filterElement.style.background = '#fff3cd';
+                setTimeout(() => {
+                    filterElement.style.background = '';
+                }, 1000);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function updateClearButtonVisibility(event) {
+            const input = event.target;
+            const clearBtn = input.nextElementSibling;
+            if (clearBtn && clearBtn.classList.contains('clear-filter-btn')) {
+                const hasValue = input.type === 'select-one' ? input.value !== '' : input.value.trim() !== '';
+                clearBtn.style.display = hasValue ? 'block' : 'none';
+            }
+        }
+
+        function toggleLayout() {
+            const container = document.querySelector('.container');
+            const toggleBtn = document.getElementById('layoutToggle');
+
+            if (container.classList.contains('fluid')) {
+                container.classList.remove('fluid');
+                toggleBtn.textContent = '◧'; // White rectangle (contained)
+                toggleBtn.title = 'Switch to Full Width';
+                saveLayoutPreference('contained');
+            } else {
+                container.classList.add('fluid');
+                toggleBtn.textContent = '◨'; // Black rectangle (full width)
+                toggleBtn.title = 'Switch to Contained';
+                saveLayoutPreference('fluid');
+            }
+        }
+
+        function toggleFilters() {
+            const filtersContainer = document.querySelector('.filters-container');
+            const toggleBtn = document.getElementById('filterToggle');
+
+            if (filtersContainer.classList.contains('hidden')) {
+                filtersContainer.classList.remove('hidden');
+                toggleBtn.textContent = '▲'; // Triangle up (hide)
+                toggleBtn.title = 'Hide Filters';
+            } else {
+                filtersContainer.classList.add('hidden');
+                toggleBtn.textContent = '▼'; // Triangle down (show)
+                toggleBtn.title = 'Show Filters';
+            }
+        }
+
+        function saveLayoutPreference(layout) {
+            try {
+                localStorage.setItem('debee_layout_preference', layout);
+            } catch (e) {
+                console.warn('Could not save layout preference to localStorage:', e);
+            }
+        }
+
+        function loadLayoutPreference() {
+            try {
+                const savedLayout = localStorage.getItem('debee_layout_preference');
+                const container = document.querySelector('.container');
+                const toggleBtn = document.getElementById('layoutToggle');
+
+                if (savedLayout === 'fluid') {
+                    container.classList.add('fluid');
+                    toggleBtn.textContent = '◨'; // Black rectangle (full width)
+                    toggleBtn.title = 'Switch to Contained';
+                } else {
+                    // Default to contained layout
+                    container.classList.remove('fluid');
+                    toggleBtn.textContent = '◧'; // White rectangle (contained)
+                    toggleBtn.title = 'Switch to Full Width';
+                }
+            } catch (e) {
+                console.warn('Could not load layout preference from localStorage:', e);
+                // Fall back to default contained layout
+                const container = document.querySelector('.container');
+                const toggleBtn = document.getElementById('layoutToggle');
+                container.classList.remove('fluid');
+                toggleBtn.textContent = '◧'; // White rectangle (contained)
+                toggleBtn.title = 'Switch to Full Width';
+            }
+        }
+    </script>
+</body>
+</html>

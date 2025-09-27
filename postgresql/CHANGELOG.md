@@ -265,6 +265,139 @@ The Python `subprocess.run()` calls were missing the `env` parameter, causing ch
 ### Migration from v2.2.0
 No configuration changes required. Existing setups will automatically benefit from the fix.
 
+## [3.0.0] - 2025-01-27
+
+### Added
+
+#### HTML Interactive Dashboard
+- **Complete HTML-based Version Table**: Interactive dashboard replacing markdown output
+- **Professional UI Design**: Clean, Audi-inspired design with sophisticated styling
+- **Real-time Filtering System**: 8 independent filter controls for comprehensive data exploration
+  - Schema filter with text search
+  - Object Name filter with text search
+  - Object Type dropdown with all detected types
+  - Operation filter for database operations (CREATE, ALTER, DROP, etc.)
+  - Last File filter for finding specific migration files
+  - Migration Updates filter for tracking specific migration scripts
+  - Ad-hoc Updates filter for emergency script tracking
+  - Minimum Update Count filter for finding frequently modified objects
+- **Enhanced Data Display**: Rich information display with operation tracking
+  - File:Line:Operation format showing exact change location and type
+  - Complete migration and ad-hoc update history per object
+  - Color-coded object type badges for quick identification
+- **Advanced Interactions**: Clickable elements for intuitive filtering
+  - Click any schema, object name, file name to instantly filter
+  - Smart filename extraction from complex file:line:operation strings
+  - Cross-column filtering for complex data exploration
+
+#### Responsive Design System
+- **Mobile-First Architecture**: Complete responsive design for all screen sizes
+- **Card-Based Mobile Layout**: Touch-friendly card interface for mobile devices
+  - Compact object cards showing all essential information
+  - Optimized typography and spacing for mobile viewing
+  - Natural page scrolling instead of constrained containers
+- **Breakpoint System**: Professional responsive behavior
+  - Desktop (1200px+): Full table with 4-column filter grid
+  - Laptop (992px-1199px): Table with 3-column filter grid
+  - Tablet (768px-991px): Table with 2-column filter grid
+  - Mobile (<768px): Card layout with single-column filters
+- **Adaptive Interface Elements**:
+  - Header reorganization: Statistics hidden on mobile for space optimization
+  - Icon-based controls using UTF-8 symbols for universal compatibility
+  - Filter toggle: Show/hide filters on mobile to maximize content space
+  - Layout toggle: Full-width mode removes all padding on mobile
+
+#### Professional UI Components
+- **Icon Button System**: Square 32x32px buttons with UTF-8 icons
+  - Layout toggle: ◧ (contained) / ◨ (full width)
+  - Filter toggle: ▲ (hide) / ▼ (show)
+  - Hover states and tooltips for accessibility
+- **Smart Statistics Display**: Dynamic positioning and visibility
+  - Desktop: Column layout on right side of header
+  - Mobile: Completely hidden to maximize content space
+  - Real-time updates showing filtered vs total counts
+- **Conditional Ad-hoc Support**: Intelligent feature detection
+  - Automatically hides ad-hoc columns and filters when no ad-hoc data present
+  - Dynamic column count and layout adjustment
+  - Clean interface for projects not using ad-hoc scripts
+
+#### Advanced Features
+- **Local Storage Preferences**: Persistent user settings
+  - Layout preference (contained/full-width) saved globally across all debee files
+  - Automatic preference loading on page startup
+  - Cross-session consistency for better user experience
+- **Dynamic Height Management**: Optimized viewport utilization
+  - Desktop filters visible: 55vh table height
+  - Desktop filters hidden: 72vh table height for maximum data viewing
+  - Mobile: Natural scrolling without height constraints
+- **Enhanced Operation Tracking**: Complete database change history
+  - Shows exact operation type (CREATE, CREATE_OR_REPLACE, ALTER, DROP)
+  - File, line number, and operation in unified display format
+  - Operation-based filtering for analyzing change patterns
+
+### Enhanced
+
+#### Extract DB Objects (`extract-db-objects.py`)
+- **Operation Data Enhancement**: Added `last_update_operation` field to object tracking
+- **HTML Template Integration**: Automatic template-based HTML generation
+- **Ad-hoc Detection**: Smart detection of ad-hoc updates for conditional UI features
+- **JavaScript Data Injection**: Dynamic data loading with operation information
+
+#### Version Table Template (`version_table_template.html`)
+- **Template-Based Generation**: Reusable template for consistent HTML output
+- **Data Placeholder System**: Automatic data injection during generation
+- **Cross-Platform Compatibility**: Works with all debee orchestrators
+
+### Changed
+
+#### User Interface Paradigm
+- **From Static to Interactive**: Complete migration from markdown tables to interactive dashboard
+- **Mobile-First Approach**: Responsive design prioritizing mobile user experience
+- **Professional Aesthetics**: Modern, clean design suitable for enterprise environments
+
+#### Data Presentation
+- **Enhanced Information Density**: More data visible with better organization
+- **Operation Visibility**: Database operations now prominently displayed
+- **Smart Filtering**: Intuitive click-to-filter interaction model
+
+### Technical Improvements
+
+#### Performance Optimizations
+- **Client-Side Processing**: All filtering and sorting happens in browser
+- **Efficient Data Structure**: Optimized JavaScript data format
+- **Minimal HTTP Requests**: Single-file solution with embedded assets
+
+#### Code Organization
+- **Modular JavaScript**: Well-structured code with clear separation of concerns
+- **CSS Grid Layout**: Modern CSS for responsive design
+- **Progressive Enhancement**: Works without JavaScript (basic table display)
+
+### Accessibility Features
+- **Keyboard Navigation**: Full keyboard support for all interactive elements
+- **Screen Reader Support**: Proper ARIA labels and semantic HTML
+- **High Contrast**: Professional color scheme with good contrast ratios
+- **Touch-Friendly**: Appropriate touch targets for mobile devices
+
+### Browser Compatibility
+- **Modern Browsers**: Chrome, Firefox, Safari, Edge (latest versions)
+- **Mobile Browsers**: iOS Safari, Chrome Mobile, Samsung Internet
+- **Responsive Images**: Scales properly on high-DPI displays
+
+### Migration from v2.2.1
+- **Automatic HTML Generation**: Add `html` to `DBVERSIONTABLEFORMATS` environment variable
+- **Template Inclusion**: Ensure `debee/version_table_template.html` is present in project
+- **No Breaking Changes**: All existing markdown and JSON outputs continue to work
+- **Enhanced Workflow**: HTML dashboard provides superior data exploration capabilities
+
+### Example Usage
+```bash
+# Generate interactive HTML dashboard
+DBVERSIONTABLEFORMATS="html;json;md" python extract-db-objects.py --format html --output db-objects.html
+
+# Using orchestrators
+./debee.sh -o prepareVersionTable  # Generates all configured formats including HTML
+```
+
 ## [Unreleased]
 
 ### Planned Features
