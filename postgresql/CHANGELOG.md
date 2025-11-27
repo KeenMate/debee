@@ -398,6 +398,25 @@ DBVERSIONTABLEFORMATS="html;json;md" python extract-db-objects.py --format html 
 ./debee.sh -o prepareVersionTable  # Generates all configured formats including HTML
 ```
 
+## [3.0.1] - 2025-11-26
+
+### Fixed
+
+#### File Filtering in Migration Processing
+- **debee.ps1**: Fixed `Get-FilesByNumericPrefix` function to properly filter migration files
+  - Added explicit validation for file pattern `^\d{3}_.*\.sql$`
+  - Files must now start with exactly 3 digits, followed by underscore, and end with `.sql` extension
+  - Prevents non-SQL files (like `ALL_TASKS_COMPLETE.md`) from being incorrectly processed
+  - Adds informative skip message when files don't match expected pattern
+
+#### Root Cause
+The original filter `???_*` matched ANY 3 characters + underscore, not just digits. Files like `ALL_TASKS_COMPLETE.md` would pass the initial filter, then fail silently during numeric prefix extraction.
+
+#### Impact
+- Only affects `debee.ps1` orchestrator
+- No configuration changes required
+- Existing valid migration files (e.g., `060_create_table.sql`) continue to work normally
+
 ## [Unreleased]
 
 ### Planned Features

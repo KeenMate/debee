@@ -144,6 +144,12 @@ function Get-FilesByNumericPrefix {
 
 	# Iterate through each file
 	foreach ($file in $files) {
+		# Skip files that don't match pattern: 3 digits + underscore + name + .sql extension
+		if ($file.Name -notmatch '^\d{3}_.*\.sql$') {
+			Write-Host "Skipping file (not matching pattern XXX_*.sql): $($file.Name)"
+			continue
+		}
+
 		# Extract the numeric prefix and convert it to an integer
 		$prefix = [int]($file.Name -replace '^(\d{3})_.*$', '$1')
 
