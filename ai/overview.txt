@@ -1,0 +1,119 @@
+OVERVIEW
+========
+
+CRITICAL: Debee is an ORCHESTRATOR, not a database tool
+- It contains ZERO SQL statements
+- It executes YOUR SQL scripts in order using psql and pg_restore
+- All database logic lives in external files you provide
+- Debee is a conductor, not a musician
+
+WHAT DEBEE IS
+-------------
+A cross-platform database migration orchestrator for PostgreSQL.
+Three implementations: PowerShell (debee.ps1), Bash (debee.sh), Python (debee.py).
+All three have identical functionality and interfaces.
+
+WHAT DEBEE DOES
+---------------
+- Reads configuration from .env files
+- Executes external SQL scripts in order
+- Calls PostgreSQL tools (psql, pg_restore)
+- Manages execution flow and error handling
+- Runs database tests
+- Generates database object documentation
+
+WHAT DEBEE DOES NOT DO
+----------------------
+- Create databases directly
+- Define table schemas
+- Contain SQL statements
+- Know your database structure
+
+ARCHITECTURE
+------------
+
+┌─────────────────┐
+│     debee.*      │  ← Orchestrator (ps1 / sh / py)
+└────────┬────────┘
+         │
+         ├── Reads: debee.env
+         ├── Calls: psql -f recreate_script.sql
+         ├── Calls: pg_restore backup.dump
+         ├── Calls: psql -f 001_init.sql
+         ├── Calls: psql -f 002_tables.sql
+         ├── Calls: psql -f 003_functions.sql
+         └── Calls: psql -f post_update.sql
+
+WHY THIS DESIGN
+---------------
+1. Separation of Concerns: Orchestration logic separate from database logic
+2. Flexibility: You control all SQL — debee just runs it
+3. Reusability: Same orchestrator works for any PostgreSQL project
+4. Transparency: All database changes in SQL files you can review
+5. Version Control: SQL files tracked separately from the tool
+
+PROJECT STRUCTURE
+-----------------
+debee/
+├── README.md                              # Root overview
+├── .gitignore                             # Ignores __pycache__, .debee*.env
+├── ai/                                    # AI context files (this folder)
+└── postgresql/                            # PostgreSQL tools
+    ├── README.md                          # PostgreSQL overview & quick start
+    ├── CHANGELOG.md                       # Version history (1.0.0 → 3.2.0)
+    ├── debee.ps1                          # PowerShell orchestrator
+    ├── debee.sh                           # Bash orchestrator
+    ├── debee.py                           # Python orchestrator
+    ├── extract-db-objects.py              # Database object extractor
+    ├── version_table_template.html        # HTML dashboard template
+    └── docs/
+        ├── configuration.md              # Environment & variables
+        ├── operations.md                 # Operations reference
+        ├── testing.md                    # Test framework
+        ├── version-table.md              # Object tracking & formats
+        └── cross-platform.md            # CLI reference & platform guide
+
+EXAMPLE PROJECT USING DEBEE
+----------------------------
+my-project/
+├── debee.ps1                    # Orchestrator (copied from postgresql/)
+├── debee.env                    # Configuration
+├── .debee.env                   # Local overrides (gitignored)
+├── scripts/
+│   └── recreate_database.sql    # YOUR recreation logic
+├── backups/
+│   └── production.dump          # YOUR database backup
+├── migrations/
+│   ├── 001_initial_schema.sql   # YOUR migrations
+│   ├── 002_add_users.sql
+│   └── 003_add_indexes.sql
+├── hooks/
+│   ├── pre_update.sql           # YOUR pre-update logic
+│   └── post_update.sql          # YOUR post-update logic
+├── ad-hoc-scripts/
+│   └── hotfix_permissions.sql   # Emergency fixes
+└── tests/
+    ├── test_connection.sql      # Flat test file
+    └── test_permissions/        # Suite directory
+        ├── test.json
+        ├── 001_setup.sql
+        └── 900_cleanup.sql
+
+VERSION HISTORY
+---------------
+- 1.0.0: PowerShell orchestrator, extract-db-objects.py
+- 2.0.0: Bash and Python orchestrators added
+- 2.1.0: prepareVersionTable operation
+- 2.2.0: Ad-hoc scripts support (DBADHOCDIRECTORY)
+- 2.2.1: Python env var inheritance fix
+- 3.0.0: HTML interactive dashboard
+- 3.0.1: File filtering fix in debee.ps1
+- 3.1.0: Folder-based test suites (runTests)
+- 3.2.0: Test isolation modes, shared setup, global ordering
+
+DEPENDENCIES
+------------
+- PostgreSQL client tools (psql, pg_restore)
+- One of: PowerShell 5.1+, Bash 4.0+, or Python 3.6+
+- Python 3.6+ (for extract-db-objects.py, standard library only)
+- No external Python packages required

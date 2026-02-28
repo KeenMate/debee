@@ -1,0 +1,183 @@
+TESTING
+=======
+
+CRITICAL: The runTests operation executes SQL-based database tests.
+Tests live in a tests/ directory relative to the working directory.
+
+RUNNING TESTS
+-------------
+
+Bash:
+  ./debee.sh -o runTests
+  ./debee.sh -o runTests --test-filter connectivity
+
+PowerShell:
+  .\debee.ps1 -Operations runTests
+  .\debee.ps1 -Operations runTests -TestFilter connectivity
+
+Python:
+  python debee.py -o runTests
+  python debee.py -o runTests --test-filter connectivity
+
+TEST ORGANIZATION — TWO FORMS
+------------------------------
+
+1. FLAT TEST FILES: Single SQL files named test_*.sql
+   tests/
+   ├── test_connection.sql
+   ├── test_permissions.sql
+   └── test_data_integrity.sql
+
+2. SUITE DIRECTORIES: Directories named test_*/ with numbered SQL files
+   tests/
+   └── test_user_permissions/
+       ├── test.json              # Optional manifest
+       ├── 001_create_test_user.sql
+       ├── 002_grant_permissions.sql
+       ├── 003_verify_access.sql
+       └── 900_cleanup.sql
+
+Both forms are discovered automatically and can coexist.
+
+SUITE FILE PHASES
+-----------------
+Files organized by numeric prefix:
+
+  000–899: MAIN PHASE
+    - Setup + execution + verification
+    - Runs in numeric order
+    - Stops on first error or FAIL
+
+  900–999: CLEANUP PHASE
+    - Always runs if always_cleanup is true (default)
+    - Failures logged as warnings, don't fail the suite
+
+SUITE MANIFEST (test.json)
+--------------------------
+Optional file in suite directory:
+
+{
+  "name": "User Permissions",
+  "description": "Verify role-based access controls",
+  "always_cleanup": true,
+  "isolation": "transaction",
+  "setup": ["shared/create_schema.sql", "shared/seed_data.sql"]
+}
+
+Fields:
+  name              Display name. Default: folder name humanized
+                    (test_user_permissions → "User Permissions")
+  description       Shown in output header. Optional.
+  always_cleanup    Whether cleanup (900-999) runs on failure. Default: true
+  isolation         Isolation mode: "none", "transaction", "database". Default: "none"
+  setup             Shared setup scripts, paths relative to tests/. Default: []
+
+ISOLATION MODES
+---------------
+
+"none" (default):
+  - No isolation
+  - Each SQL file runs individually against target database
+  - Changes persist after test completes
+
+"transaction":
+  - Wraps all setup + main phase files in BEGIN/ROLLBACK
+  - All changes rolled back automatically
+  - Uses \set ON_ERROR_STOP on
+  - Per-file output via >>>DEBEE_FILE: ...<<< markers
+  - Cleanup files (900-999) still run individually after rollback
+  - Temporary wrapper SQL file created and cleaned up
+  Best for: tests that should leave no trace
+
+"database":
+  - Recreates database before suite (calls recreateDatabase)
+  - Restores backup if DBBACKUPFILE configured (calls restoreDatabase)
+  - Switches back to DBDESTDB for test execution
+  - Then runs setup + main files individually (same as "none")
+  Best for: tests needing clean database state with irreversible changes
+
+SHARED SETUP SCRIPTS
+---------------------
+The "setup" field in test.json specifies SQL files that run before the suite's own files.
+Paths relative to tests/ directory.
+
+{
+  "setup": ["shared/create_schema.sql", "shared/seed_data.sql"]
+}
+
+Convention: tests/shared/ directory for reusable setup scripts.
+
+Works with all isolation modes:
+  "none"        → setup files run individually
+  "transaction" → setup files included in BEGIN/ROLLBACK wrapper
+  "database"    → setup files run individually after database recreation
+
+GLOBAL TEST ORDERING
+--------------------
+Create tests/tests.json to control execution order:
+
+{
+  "order": [
+    "test_connection.sql",
+    "test_connectivity"
+  ]
+}
+
+- Items in "order" run first, in specified order
+- Unlisted items follow alphabetically
+- If tests.json absent, all tests run alphabetically
+- Ordering applied before --test-filter
+
+PASS/FAIL DETECTION
+-------------------
+Two checks per test file:
+1. psql exit code — nonzero = automatic FAIL
+2. Output content — scanned for FAIL strings
+
+Output colorized: PASS = green, FAIL = red.
+
+TEST FILTERING
+--------------
+--test-filter matches against test file/directory names:
+
+  ./debee.sh -o runTests --test-filter connectivity
+  # Runs only tests with "connectivity" in their name
+
+Default: "all" (runs everything)
+
+HELPER FUNCTIONS (INTERNAL)
+---------------------------
+Each orchestrator has these test-related functions:
+
+debee.py:   _read_test_manifest(), _invoke_test_sql_file(),
+            _invoke_flat_test(), _invoke_suite_test(), _invoke_suite_transaction()
+debee.ps1:  Read-TestManifest, Invoke-TestSqlFile,
+            Invoke-FlatTest, Invoke-SuiteTest, Invoke-SuiteTransaction
+debee.sh:   read_test_manifest, invoke_test_sql_file,
+            invoke_flat_test, invoke_suite_test, invoke_suite_transaction
+
+Data structures:
+  debee.py:  TestManifest dataclass, TestResult dataclass
+  debee.ps1: Manifest hashtable with Isolation, Setup keys
+  debee.sh:  _MANIFEST_ISOLATION, _MANIFEST_SETUP globals
+
+JSON parsing in debee.sh uses python3 -c one-liner (Python already required by project).
+
+EXAMPLE SUITE STRUCTURE
+-----------------------
+tests/
+├── tests.json                     # Global ordering
+├── shared/
+│   ├── create_schema.sql          # Reusable setup
+│   └── seed_data.sql
+├── test_connection.sql            # Flat test
+├── test_connectivity/             # Suite
+│   ├── test.json                  # Manifest with isolation
+│   ├── 001_create_test_user.sql
+│   ├── 002_check_connectivity.sql
+│   └── 900_cleanup.sql
+└── test_permissions/              # Suite
+    ├── test.json
+    ├── 001_setup.sql
+    ├── 002_verify_roles.sql
+    └── 900_drop_test_roles.sql

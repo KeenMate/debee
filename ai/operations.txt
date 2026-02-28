@@ -1,0 +1,146 @@
+OPERATIONS
+==========
+
+CRITICAL: Each operation delegates to external tools and YOUR SQL scripts.
+Debee itself contains no database logic.
+
+OPERATIONS OVERVIEW
+-------------------
+Operation               What It Does
+recreateDatabase        Runs: psql -f $DBRECREATESCRIPT
+restoreDatabase         Runs: pg_restore $DBBACKUPFILE
+preUpdateScripts        Runs: psql -f $DBPREUPDATESCRIPTS
+updateDatabase          Runs: psql -f 001_*.sql, 002_*.sql, etc. in order
+postUpdateScripts       Runs: psql -f $DBPOSTUPDATESCRIPTS
+prepareVersionTable     Generates database object documentation (→ version-table.txt)
+execSql                 Executes a SQL file, inline SQL, or opens interactive psql
+runTests                Runs test files and suites (→ testing.txt)
+fullService             Runs: recreate → restore → pre-update → update → post-update
+
+RUNNING OPERATIONS
+------------------
+
+PowerShell:
+  .\debee.ps1 -Operations updateDatabase
+  .\debee.ps1 -Operations @("restoreDatabase", "updateDatabase")
+  .\debee.ps1 -Operations fullService
+
+Bash:
+  ./debee.sh -o updateDatabase
+  ./debee.sh -o restoreDatabase,updateDatabase
+  ./debee.sh -o fullService
+
+Python:
+  python debee.py -o updateDatabase
+  python debee.py -o restoreDatabase,updateDatabase
+  python debee.py -o fullService
+
+FULLSERVICE FLOW
+----------------
+When you run fullService, debee executes in this exact order:
+
+1. Loads environment → reads .env files
+2. recreateDatabase → executes psql -f $DBRECREATESCRIPT (YOUR DROP/CREATE commands)
+3. restoreDatabase → executes pg_restore $DBBACKUPFILE (YOUR data and schema)
+4. preUpdateScripts → executes psql -f $DBPREUPDATESCRIPTS (YOUR preparation logic)
+5. updateDatabase → finds and executes XXX_*.sql files in order (YOUR migrations)
+6. postUpdateScripts → executes psql -f $DBPOSTUPDATESCRIPTS (YOUR cleanup logic)
+
+MIGRATION FILE NAMING CONVENTION
+---------------------------------
+Pattern: XXX_description.sql
+
+- XXX = exactly 3 digits (001, 060, 999)
+- _ = underscore separator
+- description = any descriptive name
+- .sql = required extension
+
+Valid:
+  001_create_users_table.sql
+  060_add_indexes.sql
+  999_examples.sql
+
+Invalid:
+  ABC_test.sql          ← prefix is not digits
+  01_test.sql           ← prefix is not exactly 3 digits
+  ALL_TASKS_COMPLETE.md ← wrong extension
+
+Files not matching pattern are skipped with informative message.
+Validated with regex: ^\d{3}_.*\.sql$
+
+MIGRATION RANGE SELECTION
+-------------------------
+Control which migrations run:
+
+PowerShell:
+  .\debee.ps1 -Operations updateDatabase -UpdateStartNumber 10 -UpdateEndNumber 20
+
+Bash:
+  ./debee.sh -o updateDatabase -s 10 -n 20
+
+Python:
+  python debee.py -o updateDatabase -s 10 -n 20
+
+Default: -1 (all files). CLI args override env vars DBUPDATESTARTNUMBER/DBUPDATEENDNUMBER.
+
+AD-HOC SCRIPTS
+--------------
+DBADHOCDIRECTORY env var points to directory of emergency/hotfix scripts.
+
+Properties:
+- Scanned recursively for .sql files
+- No naming convention required — any .sql file processed
+- Tracked separately in version table output with "Ad-hoc" source label
+- Enable emergency fixes while maintaining change history
+
+Set in debee.env:
+  DBADHOCDIRECTORY=ad-hoc-scripts/
+
+Use cases: emergency fixes, hotfix deployment, production repairs, data corrections.
+
+EXECSQL OPERATION
+-----------------
+Execute arbitrary SQL without the migration pipeline.
+
+PowerShell:
+  .\debee.ps1 -Operations execSql -SqlFile path/to/script.sql    # Execute file
+  .\debee.ps1 -Operations execSql -Sql "SELECT version();"       # Inline SQL
+  .\debee.ps1 -Operations execSql                                 # Interactive psql
+
+Bash:
+  ./debee.sh -o execSql --sql-file path/to/script.sql
+  ./debee.sh -o execSql --sql "SELECT version();"
+  ./debee.sh -o execSql
+
+Python:
+  python debee.py -o execSql --sql-file path/to/script.sql
+  python debee.py -o execSql --sql "SELECT version();"
+  python debee.py -o execSql
+
+Priority: file → inline command → interactive session.
+
+PRE/POST UPDATE SCRIPTS
+------------------------
+Multiple scripts with semicolon separators:
+
+DBPREUPDATESCRIPTS=hooks/pre1.sql;hooks/pre2.sql
+DBPOSTUPDATESCRIPTS=hooks/post.sql
+
+BACKUP FORMATS
+--------------
+DBBACKUPTYPE values:
+  custom    pg_dump custom archive format (.dump)
+  dir       pg_dump directory format
+  file      Plain SQL file
+
+RESTOREDATABASE
+---------------
+Restores from backup using pg_restore.
+Configurable parallel jobs: DBRESTOREJOBCOUNT=4
+Optional database creation: DBCREATEONRESTORE=true/false
+
+RECREATEDATABASE
+----------------
+Executes YOUR recreation SQL script via psql.
+The DROP/CREATE DATABASE commands are in YOUR script, not in debee.
+Uses DBCONNECTDB for the admin connection.

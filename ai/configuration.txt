@@ -1,0 +1,97 @@
+CONFIGURATION
+=============
+
+CRITICAL: Debee is entirely configuration-driven. All behavior controlled through .env files.
+
+ENVIRONMENT FILE LOADING ORDER
+------------------------------
+Files loaded in order, later files override earlier values:
+
+1. debee.env              → Main configuration (committed to version control)
+2. .debee.env             → Local overrides (gitignored, developer-specific)
+3. debee.<env>.env        → Environment-specific (when -e/--environment flag used)
+
+Example:
+  ./debee.sh -e staging -o updateDatabase
+  Loads: debee.env → .debee.env → debee.staging.env
+
+ENVIRONMENT VARIABLES — COMPLETE REFERENCE
+-------------------------------------------
+
+Connection Settings:
+  PGHOST                    PostgreSQL host                        Example: localhost
+  PGPORT                    PostgreSQL port                        Example: 5432
+  PGUSER                    PostgreSQL user                        Example: postgres
+  PGPASSWORD                PostgreSQL password                    Example: secret
+  DBCONNECTDB               Admin database for connections         Example: postgres
+  DBDESTDB                  Target database name                   Example: myapp_db
+
+Tool Paths:
+  DBPSQLFILE                Path to psql executable                Example: psql
+  DBPGRESTOREFILE           Path to pg_restore executable          Example: pg_restore
+
+Script Paths:
+  DBRECREATESCRIPT          Database recreation SQL                 Example: scripts/recreate.sql
+  DBBACKUPFILE              Database backup file                   Example: backups/prod.dump
+  DBBACKUPTYPE              Backup format                          Values: custom, dir, file
+  DBPREUPDATESCRIPTS        Pre-update scripts (semicolon-sep)     Example: hooks/pre1.sql;hooks/pre2.sql
+  DBPOSTUPDATESCRIPTS       Post-update scripts (semicolon-sep)    Example: hooks/post.sql
+  DBADHOCDIRECTORY          Ad-hoc/hotfix scripts directory        Example: ad-hoc-scripts/
+
+Migration Range:
+  DBUPDATESTARTNUMBER       First migration number to run          Example: 1
+  DBUPDATEENDNUMBER         Last migration number to run           Example: 100
+
+Backup/Restore:
+  DBRESTOREJOBCOUNT         Parallel jobs for pg_restore           Example: 4
+  DBCREATEONRESTORE         Create database during restore         Values: true, false
+
+Version Table:
+  DBVERSIONTABLEFORMATS     Output formats (semicolon-sep)         Example: html;json;md;csv
+  DBVERSIONTABLEOUTPUTFOLDER  Output directory                     Example: .
+  DBVERSIONTABLEFILENAME    Base filename (no extension)           Example: db-objects
+
+LOCAL OVERRIDES PATTERN
+-----------------------
+Use .debee.env for settings that vary per developer:
+
+# .debee.env (gitignored)
+PGPASSWORD=my_local_password
+PGHOST=localhost
+DBBACKUPFILE=/home/me/backups/latest.dump
+
+Keeps secrets out of version control while sharing base config with team.
+
+EXAMPLE debee.env
+-----------------
+# Connection
+PGHOST=localhost
+PGPORT=5432
+PGUSER=postgres
+DBCONNECTDB=postgres
+DBDESTDB=myapp_db
+
+# Scripts
+DBRECREATESCRIPT=scripts/recreate_database.sql
+DBBACKUPFILE=backups/production.dump
+DBBACKUPTYPE=custom
+DBPREUPDATESCRIPTS=hooks/pre_update.sql
+DBPOSTUPDATESCRIPTS=hooks/post_update.sql
+DBADHOCDIRECTORY=ad-hoc-scripts/
+
+# Migration range
+DBUPDATESTARTNUMBER=1
+DBUPDATEENDNUMBER=999
+
+# Version table output
+DBVERSIONTABLEFORMATS=html;json;md
+
+# Tool paths (defaults work if tools are on PATH)
+DBPSQLFILE=psql
+DBPGRESTOREFILE=pg_restore
+
+CLI OVERRIDE
+------------
+CLI arguments override environment variables:
+  ./debee.sh -o updateDatabase -s 10 -n 20
+  # Overrides DBUPDATESTARTNUMBER and DBUPDATEENDNUMBER from .env

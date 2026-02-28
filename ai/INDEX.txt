@@ -1,0 +1,226 @@
+DOCUMENTATION INDEX
+===================
+
+Quick reference for finding documentation on specific topics.
+
+FILE OVERVIEW
+-------------
+overview.txt             - What debee is, philosophy, architecture, project structure
+configuration.txt        - Environment files, all env vars, local overrides
+operations.txt           - All operations, fullService flow, migration naming, ad-hoc scripts
+testing.txt              - Test runner, flat files, suites, isolation modes, shared setup, ordering
+version-table.txt        - prepareVersionTable, output formats, extract-db-objects.py, HTML dashboard
+cross-platform.txt       - Three implementations, CLI flags for ps1/sh/py, platform compatibility
+
+KEYWORD INDEX
+=============
+
+A
+-
+Ad-hoc scripts → operations.txt, version-table.txt
+always_cleanup → testing.txt
+Architecture → overview.txt
+
+B
+-
+Backup → operations.txt, configuration.txt
+Bash → cross-platform.txt
+BEGIN/ROLLBACK → testing.txt
+
+C
+-
+CHANGELOG → overview.txt
+Cleanup phase → testing.txt
+CLI flags → cross-platform.txt
+Configuration → configuration.txt
+Cross-platform → cross-platform.txt, overview.txt
+CSV output → version-table.txt
+
+D
+-
+Database isolation → testing.txt
+DBADHOCDIRECTORY → configuration.txt, operations.txt, version-table.txt
+DBBACKUPFILE → configuration.txt, operations.txt
+DBBACKUPTYPE → configuration.txt, operations.txt
+DBCONNECTDB → configuration.txt
+DBCREATEONRESTORE → configuration.txt
+DBDESTDB → configuration.txt
+DBPGRESTOREFILE → configuration.txt
+DBPOSTUPDATESCRIPTS → configuration.txt, operations.txt
+DBPREUPDATESCRIPTS → configuration.txt, operations.txt
+DBPSQLFILE → configuration.txt
+DBRECREATESCRIPT → configuration.txt, operations.txt
+DBRESTOREJOBCOUNT → configuration.txt
+DBUPDATEENDNUMBER → configuration.txt, operations.txt
+DBUPDATESTARTNUMBER → configuration.txt, operations.txt
+DBVERSIONTABLEFILENAME → configuration.txt, version-table.txt
+DBVERSIONTABLEFORMATS → configuration.txt, version-table.txt
+DBVERSIONTABLEOUTPUTFOLDER → configuration.txt, version-table.txt
+debee.env → configuration.txt
+.debee.env → configuration.txt
+
+E
+-
+Environment files → configuration.txt
+Environment overrides → configuration.txt
+execSql → operations.txt, cross-platform.txt
+extract-db-objects.py → version-table.txt
+
+F
+-
+File naming → operations.txt
+Filtering (tests) → testing.txt
+Filtering (HTML dashboard) → version-table.txt
+fullService → operations.txt
+
+H
+-
+HTML dashboard → version-table.txt
+Hotfix scripts → operations.txt
+
+I
+-
+Isolation modes → testing.txt
+
+J
+-
+JSON output → version-table.txt
+
+M
+-
+Main phase → testing.txt
+Manifest (test.json) → testing.txt
+Manifest (tests.json) → testing.txt
+Markdown output → version-table.txt
+Migration files → operations.txt
+Migration range → operations.txt, configuration.txt
+
+N
+-
+Naming convention → operations.txt
+--no-color → cross-platform.txt
+
+O
+-
+Operations → operations.txt
+Orchestration → overview.txt
+
+P
+-
+PGHOST → configuration.txt
+PGPASSWORD → configuration.txt
+PGPORT → configuration.txt
+PGUSER → configuration.txt
+Philosophy → overview.txt
+postUpdateScripts → operations.txt
+PowerShell → cross-platform.txt
+preUpdateScripts → operations.txt
+prepareVersionTable → version-table.txt
+Project structure → overview.txt
+psql → operations.txt, configuration.txt
+pg_restore → operations.txt, configuration.txt
+Python → cross-platform.txt
+
+R
+-
+recreateDatabase → operations.txt
+restoreDatabase → operations.txt
+runTests → testing.txt
+
+S
+-
+Shared setup → testing.txt
+--sql → cross-platform.txt, operations.txt
+--sql-file → cross-platform.txt, operations.txt
+Suite directories → testing.txt
+
+T
+-
+test.json → testing.txt
+tests.json → testing.txt
+--test-filter → testing.txt, cross-platform.txt
+Test ordering → testing.txt
+Transaction isolation → testing.txt
+
+U
+-
+updateDatabase → operations.txt
+
+V
+-
+Version table → version-table.txt
+version_table_template.html → version-table.txt
+
+COMMON QUESTIONS
+================
+
+Q: What is debee?
+A: → overview.txt
+
+Q: How do I configure debee?
+A: → configuration.txt
+
+Q: How do I run migrations?
+A: → operations.txt (updateDatabase)
+
+Q: How do I run all operations in sequence?
+A: → operations.txt (fullService)
+
+Q: What operations are available?
+A: → operations.txt
+
+Q: How do I run tests?
+A: → testing.txt
+
+Q: How do I isolate test suites?
+A: → testing.txt (isolation modes)
+
+Q: How do I generate database object documentation?
+A: → version-table.txt
+
+Q: Which orchestrator should I use (ps1/sh/py)?
+A: → cross-platform.txt
+
+Q: What CLI flags does each orchestrator accept?
+A: → cross-platform.txt
+
+Q: How do I handle emergency database fixes?
+A: → operations.txt (ad-hoc scripts)
+
+Q: How do I track ad-hoc changes in documentation?
+A: → version-table.txt
+
+FEATURES BY CATEGORY
+====================
+
+GETTING STARTED
+- What debee is → overview.txt
+- Philosophy → overview.txt
+- Project structure → overview.txt
+- Configuration → configuration.txt
+
+OPERATIONS
+- All operations → operations.txt
+- fullService pipeline → operations.txt
+- Migration files → operations.txt
+- Ad-hoc scripts → operations.txt
+- execSql → operations.txt
+
+TESTING
+- Test runner → testing.txt
+- Flat test files → testing.txt
+- Suite directories → testing.txt
+- Isolation modes → testing.txt
+- Shared setup → testing.txt
+- Test ordering → testing.txt
+
+DOCUMENTATION GENERATION
+- Version table → version-table.txt
+- Output formats → version-table.txt
+- HTML dashboard → version-table.txt
+- Object tracking → version-table.txt
+
+CROSS-PLATFORM
+- Three implementations → cross-platform.txt
+- CLI reference → cross-platform.txt
+- Platform compatibility → cross-platform.txt

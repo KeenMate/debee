@@ -1,0 +1,117 @@
+CROSS-PLATFORM SUPPORT
+======================
+
+CRITICAL: Three independent implementations with IDENTICAL functionality.
+All produce the same results. Choose based on your environment.
+
+THREE IMPLEMENTATIONS
+---------------------
+Orchestrator    Language      Best For
+debee.ps1       PowerShell    Windows, teams using PowerShell
+debee.sh        Bash          Linux/macOS native, CI/CD pipelines
+debee.py        Python        Cross-platform consistency, Python teams
+
+WHICH TO CHOOSE
+---------------
+Windows         → debee.ps1 (native) or debee.py
+Linux/macOS     → debee.sh (native) or debee.py
+Mixed envs      → debee.py for consistency
+CI/CD           → debee.sh (lightweight) or debee.py
+
+PLATFORM COMPATIBILITY
+----------------------
+Orchestrator    Windows    Linux          macOS          WSL
+debee.ps1       Native     PS Core req.   PS Core req.   PS Core req.
+debee.sh        WSL only   Native         Native         Native
+debee.py        Native     Native         Native         Native
+
+Runtime Requirements:
+  debee.ps1     PowerShell 5.1+ (Windows) or PowerShell Core 6.0+
+  debee.sh      Bash 4.0+
+  debee.py      Python 3.6+
+
+All also require: psql, pg_restore, Python 3.6+ (for extract-db-objects.py)
+
+CLI REFERENCE — POWERSHELL (debee.ps1)
+--------------------------------------
+.\debee.ps1
+  -Operations <string[]>        # Operations to run (default: fullService)
+  [-Environment <string>]       # Environment name for config file
+  [-UpdateStartNumber <int>]    # First migration number (default: -1 = all)
+  [-UpdateEndNumber <int>]      # Last migration number (default: -1 = all)
+  [-SqlFile <string>]           # SQL file for execSql
+  [-Sql <string>]               # Inline SQL for execSql
+  [-TestFilter <string>]        # Test filter for runTests (default: "all")
+
+Examples:
+  .\debee.ps1 -Operations fullService
+  .\debee.ps1 -Operations updateDatabase -UpdateStartNumber 10 -UpdateEndNumber 20
+  .\debee.ps1 -Operations @("restoreDatabase", "updateDatabase")
+  .\debee.ps1 -Operations execSql -SqlFile path/to/script.sql
+  .\debee.ps1 -Operations execSql -Sql "SELECT version();"
+  .\debee.ps1 -Operations runTests -TestFilter connectivity
+  .\debee.ps1 -Environment staging -Operations updateDatabase
+
+CLI REFERENCE — BASH (debee.sh)
+-------------------------------
+./debee.sh [options]
+  -o, --operations <ops>      # Comma-separated operations (default: fullService)
+  -e, --environment <env>     # Environment name for config file
+  -s, --start-number <num>    # First migration number (default: -1 = all)
+  -n, --end-number <num>      # Last migration number (default: -1 = all)
+      --sql-file <file>       # SQL file for execSql
+      --sql <query>           # Inline SQL for execSql
+      --test-filter <pattern> # Test filter for runTests (default: "all")
+  -h, --help                  # Show help
+
+Examples:
+  ./debee.sh -o fullService
+  ./debee.sh -o updateDatabase -s 10 -n 20
+  ./debee.sh -o restoreDatabase,updateDatabase
+  ./debee.sh -o execSql --sql-file path/to/script.sql
+  ./debee.sh -o execSql --sql "SELECT version();"
+  ./debee.sh -o runTests --test-filter connectivity
+  ./debee.sh -e staging -o updateDatabase
+
+CLI REFERENCE — PYTHON (debee.py)
+---------------------------------
+python debee.py [options]
+  -o, --operations <ops>      # Comma-separated operations (default: fullService)
+  -e, --environment <env>     # Environment name for config file
+  -s, --start-number <num>    # First migration number (default: -1 = all)
+  -n, --end-number <num>      # Last migration number (default: -1 = all)
+      --sql-file <file>       # SQL file for execSql
+      --sql <query>           # Inline SQL for execSql
+      --test-filter <pattern> # Test filter for runTests (default: "all")
+      --no-color              # Disable colored output (for CI/CD)
+
+Examples:
+  python debee.py -o fullService
+  python debee.py -o updateDatabase -s 10 -n 20
+  python debee.py -o restoreDatabase,updateDatabase
+  python debee.py -o execSql --sql-file path/to/script.sql
+  python debee.py -o execSql --sql "SELECT version();"
+  python debee.py -o runTests --test-filter connectivity
+  python debee.py -e staging -o updateDatabase
+  python debee.py -o updateDatabase --no-color
+
+VALID OPERATIONS (ALL IMPLEMENTATIONS)
+--------------------------------------
+recreateDatabase
+restoreDatabase
+updateDatabase
+preUpdateScripts
+postUpdateScripts
+prepareVersionTable
+execSql
+runTests
+fullService
+
+IMPLEMENTATION DIFFERENCES
+--------------------------
+Feature                 ps1                    sh                 py
+Multiple ops syntax     Array: @("a","b")      Comma: a,b         Comma: a,b
+Color output            PowerShell colors      ANSI escapes       ANSI + TTY detect
+Disable colors          —                      —                  --no-color flag
+JSON parsing            ConvertFrom-Json       python3 -c         json module
+Env inheritance         Automatic              Automatic          Explicit env=os.environ
