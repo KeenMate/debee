@@ -1,0 +1,6 @@
+{
+  "order": [
+    "test_connection.sql",
+    "test_connectivity"
+  ]
+}

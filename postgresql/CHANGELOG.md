@@ -417,6 +417,144 @@ The original filter `???_*` matched ANY 3 characters + underscore, not just digi
 - No configuration changes required
 - Existing valid migration files (e.g., `060_create_table.sql`) continue to work normally
 
+## [3.1.0] - 2026-02-28
+
+### Added
+
+#### Folder-Based Test Suite Framework (`runTests` operation)
+- **Suite Directories**: Test suites can now be organized as `test_*/` directories alongside flat `test_*.sql` files
+- **Optional Manifest**: `test.json` file in suite directories for metadata
+  - `name`: Display name (default: folder name humanized, e.g. `test_user_permissions` → `User Permissions`)
+  - `description`: Optional description shown in output header
+  - `always_cleanup`: Controls whether cleanup phase runs on failure (default: `true`)
+- **Phase Convention**: Files within suites are organized by numeric prefix
+  - **000–899**: Main phase (setup + execution + verification), runs in order, stops on first error or FAIL
+  - **900–999**: Cleanup phase, always runs if `always_cleanup` is true, failures logged as warnings
+- **Suite Discovery**: Automatically discovers both flat `test_*.sql` files and `test_*/` directories in `tests/`
+- **Enhanced Summary**: Per-suite and per-file result counts alongside PASS/FAIL totals
+- **Sample Test Suite**: `test_connectivity/` suite with setup, verification, and cleanup phases
+
+### Improved
+
+#### Error Detection in Test Runner
+- **psql Exit Code Handling**: Nonzero psql exit codes now count as automatic FAIL across all orchestrators
+- Previously psql errors could be silently ignored if no FAIL string appeared in output
+
+### Technical Details
+
+#### New Helper Functions
+| Orchestrator | Functions Added |
+|-------------|----------------|
+| debee.py | `_read_test_manifest()`, `_invoke_test_sql_file()`, `_invoke_flat_test()`, `_invoke_suite_test()` |
+| debee.ps1 | `Read-TestManifest`, `Invoke-TestSqlFile`, `Invoke-FlatTest`, `Invoke-SuiteTest` |
+| debee.sh | `read_test_manifest`, `invoke_test_sql_file`, `invoke_flat_test`, `invoke_suite_test` |
+
+#### New Data Structures (debee.py)
+- `TestManifest` dataclass: Holds suite manifest data with defaults
+- `TestResult` dataclass: Structured test result with pass/fail counts and error flag
+
+#### JSON Parsing (debee.sh)
+- Uses `python3 -c` one-liner for JSON manifest parsing (Python already required by project)
+
+### Migration from v3.0.1
+- No breaking changes — existing flat `test_*.sql` files continue to work unchanged
+- To use suites, create a `test_*/` directory inside `tests/` with numbered SQL files
+- Optional `test.json` manifest for custom suite name/description
+
+### Example Usage
+```bash
+# Run all tests (flat files + suites)
+./debee.sh -o runTests
+python debee.py -o runTests
+.\debee.ps1 -Operations runTests
+
+# Filter to run only suite tests
+./debee.sh -o runTests --test-filter connectivity
+
+# Filter to run only flat file tests
+./debee.sh -o runTests --test-filter connection
+```
+
+## [3.2.0] - 2026-02-28
+
+### Added
+
+#### Test Suite Isolation Modes
+- **Transaction Isolation** (`"isolation": "transaction"`): Wraps all setup + main files in a single `BEGIN`/`ROLLBACK` psql session
+  - True transaction isolation — all changes are rolled back automatically
+  - Uses `\set ON_ERROR_STOP on` to stop on SQL errors
+  - Per-file output attribution via `>>>DEBEE_FILE: ...<<<` markers
+  - Cleanup files (900-999) still run individually after the rollback
+  - Temporary wrapper SQL file created and cleaned up in finally block
+- **Database Isolation** (`"isolation": "database"`): Recreates and optionally restores the database before the suite
+  - Calls existing `recreate_database()` before suite execution
+  - Calls `restore_database()` if backup is configured (`DBBACKUPFILE`)
+  - Switches back to `DBDESTDB` for test execution
+  - Then runs shared setup + main files individually (same as `"none"`)
+- **None Isolation** (`"isolation": "none"`): Current behavior, unchanged (default)
+- Configured via `isolation` field in suite `test.json` manifest
+- Unknown isolation values produce a warning and fall back to `"none"`
+
+#### Shared Setup Scripts
+- **`setup` field** in suite `test.json`: Array of paths relative to `tests/` directory
+- Shared SQL files run before suite's own main files
+- Enables reuse of common SQL (schema creation, seed data) across suites
+- Works with all isolation modes:
+  - `"none"`: Setup files run individually
+  - `"transaction"`: Setup files included in the BEGIN/ROLLBACK wrapper
+  - `"database"`: Setup files run individually after database recreation
+- `tests/shared/` directory created as convention placeholder
+
+#### Global Test Ordering
+- **`tests/tests.json`**: Optional manifest for controlling test execution order
+- `order` array specifies items to run first (in given order)
+- Unlisted items follow alphabetically after ordered items
+- If file is absent, current alphabetical behavior is preserved
+- Works with `--test-filter` (ordering applied before filtering)
+
+### Example Configuration
+
+#### Suite `test.json` with isolation and shared setup:
+```json
+{
+  "name": "Permissions Test",
+  "description": "Test user permissions",
+  "always_cleanup": true,
+  "isolation": "transaction",
+  "setup": ["shared/create_schema.sql", "shared/seed_data.sql"]
+}
+```
+
+#### Global `tests/tests.json` with ordering:
+```json
+{
+  "order": [
+    "test_connection.sql",
+    "test_connectivity"
+  ]
+}
+```
+
+### Technical Details
+
+#### New Functions
+| Orchestrator | Functions Added |
+|-------------|----------------|
+| debee.py | `_invoke_suite_transaction()` |
+| debee.ps1 | `Invoke-SuiteTransaction` |
+| debee.sh | `invoke_suite_transaction` |
+
+#### Updated Data Structures
+- `TestManifest` dataclass (debee.py): Added `isolation: str` and `setup: List[str]` fields
+- Manifest hashtable (debee.ps1): Added `Isolation` and `Setup` keys
+- Manifest globals (debee.sh): Added `_MANIFEST_ISOLATION` and `_MANIFEST_SETUP` variables
+
+### Migration from v3.1.0
+- No breaking changes — all existing test configurations work unchanged
+- Add `"isolation": "transaction"` or `"isolation": "database"` to suite `test.json` to enable isolation
+- Add `"setup": [...]` to suite `test.json` to enable shared setup scripts
+- Create `tests/tests.json` with `"order": [...]` to control execution order
+
 ## [Unreleased]
 
 ### Planned Features
