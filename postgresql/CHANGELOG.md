@@ -555,6 +555,42 @@ python debee.py -o runTests
 - Add `"setup": [...]` to suite `test.json` to enable shared setup scripts
 - Create `tests/tests.json` with `"order": [...]` to control execution order
 
+## [3.2.1] - 2026-02-28
+
+### Added
+
+#### Silent-by-Default Test Runner
+- **`--test-verbose` flag**: All three orchestrators now default to **silent mode** when running tests
+  - Silent mode only prints the summary block and any failures — PASS lines are suppressed
+  - On failure, the relevant test/suite header and FAIL/ERROR lines are printed for context
+  - Use `--test-verbose` (Bash, Python) or `-TestVerbose` (PowerShell) to restore full output
+- **Token-efficient for AI tools**: Reduces output noise when tests pass, ideal for CI and AI-assisted workflows
+
+#### Usage
+```bash
+# Silent mode (default) — only summary + failures
+./debee.sh -o runTests
+python debee.py -o runTests
+.\debee.ps1 -Operations runTests
+
+# Verbose mode — all PASS/FAIL lines shown (previous behavior)
+./debee.sh -o runTests --test-verbose
+python debee.py -o runTests --test-verbose
+.\debee.ps1 -Operations runTests -TestVerbose
+```
+
+### Fixed
+
+#### PowerShell Measure-Object Bug
+- **debee.ps1**: Fixed `Measure-Object -Property PassCount -Sum` failing on hashtable results in test summary
+  - Changed to `ForEach-Object { $_.PassCount } | Measure-Object -Sum` pattern
+  - Same fix applied for `FailCount`
+  - Root cause: `Measure-Object -Property` does not work on hashtable values, only on object properties
+
+### Migration from v3.2.0
+- No breaking changes — tests now produce less output by default
+- Add `--test-verbose` or `-TestVerbose` to restore previous verbose behavior
+
 ## [Unreleased]
 
 ### Planned Features

@@ -163,6 +163,47 @@ The test runner checks two things for each test file:
 
 Output is colorized: PASS results in green, FAIL results in red.
 
+## Output Modes
+
+By default, tests run in **silent mode** — only the summary and any failures are printed. This reduces noise when running from CI or AI tools.
+
+Use `--test-verbose` to see all output including PASS lines (the original behavior).
+
+```bash
+# Silent mode (default) — only summary + failures
+./debee.sh -o runTests
+python debee.py -o runTests
+.\debee.ps1 -Operations runTests
+
+# Verbose mode — full output with all PASS/FAIL lines
+./debee.sh -o runTests --test-verbose
+python debee.py -o runTests --test-verbose
+.\debee.ps1 -Operations runTests -TestVerbose
+```
+
+**Silent mode output (all pass):**
+```
+=== Test Summary ===
+PASSED: 4
+FAILED: 0
+Total:  4
+Suites: 1 passed, 0 failed
+Files:  1 passed, 0 failed
+```
+
+**Silent mode output (one failure):**
+```
+--- test_connection.sql --- FAILED
+  FAIL: database connection failed
+
+=== Test Summary ===
+PASSED: 3
+FAILED: 1
+Total:  4
+Suites: 1 passed, 0 failed
+Files:  0 passed, 1 failed
+```
+
 ## Test Filtering
 
 Use `--test-filter` to run a subset of tests by name:

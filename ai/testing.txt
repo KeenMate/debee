@@ -136,6 +136,28 @@ Two checks per test file:
 
 Output colorized: PASS = green, FAIL = red.
 
+OUTPUT MODES
+------------
+By default, tests run in SILENT MODE — only the summary and any failures are printed.
+This reduces noise when running from CI or AI tools.
+
+Use --test-verbose to see all output including PASS lines (original behavior).
+
+Bash:
+  ./debee.sh -o runTests                    # Silent (default)
+  ./debee.sh -o runTests --test-verbose     # Verbose
+
+PowerShell:
+  .\debee.ps1 -Operations runTests                    # Silent (default)
+  .\debee.ps1 -Operations runTests -TestVerbose       # Verbose
+
+Python:
+  python debee.py -o runTests                    # Silent (default)
+  python debee.py -o runTests --test-verbose     # Verbose
+
+Silent mode (all pass): only shows summary block.
+Silent mode (failure): shows failed test header + FAIL lines + summary.
+
 TEST FILTERING
 --------------
 --test-filter matches against test file/directory names:

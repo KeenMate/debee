@@ -575,7 +575,7 @@ class DebeeOrchestrator:
 
         return manifest
 
-    def _invoke_test_sql_file(self, file_path: Path) -> TestResult:
+    def _invoke_test_sql_file(self, file_path: Path, verbose: bool = False) -> TestResult:
         """Run a single SQL test file via psql, return structured result"""
         psql_cmd = self.env_vars.get("DBPSQLFILE", "psql")
         result = TestResult(name=file_path.name)
@@ -600,15 +600,6 @@ class DebeeOrchestrator:
             result.error = True
             result.passed = False
 
-        # Colorize and print output
-        for line in output.splitlines():
-            if "PASS" in line:
-                print(f"  {Colors.GREEN}{line}{Colors.NC}")
-            elif "FAIL" in line:
-                print(f"  {Colors.RED}{line}{Colors.NC}")
-            else:
-                print(f"  {line}")
-
         # Count PASS/FAIL occurrences
         result.pass_count = output.count("PASS")
         result.fail_count = output.count("FAIL")
@@ -616,10 +607,28 @@ class DebeeOrchestrator:
         if result.fail_count > 0 or result.error:
             result.passed = False
 
+        # Colorize and print output
+        if verbose:
+            for line in output.splitlines():
+                if "PASS" in line:
+                    print(f"  {Colors.GREEN}{line}{Colors.NC}")
+                elif "FAIL" in line:
+                    print(f"  {Colors.RED}{line}{Colors.NC}")
+                else:
+                    print(f"  {line}")
+        elif not result.passed:
+            # Silent mode: only print FAIL lines and error context
+            for line in output.splitlines():
+                if "FAIL" in line:
+                    print(f"  {Colors.RED}{line}{Colors.NC}")
+                elif "ERROR" in line or "error" in line:
+                    print(f"  {Colors.RED}{line}{Colors.NC}")
+
         return result
 
     def _invoke_suite_transaction(self, suite_dir: Path, manifest: TestManifest,
-                                     main_files: List[Path], cleanup_files: List[Path]) -> TestResult:
+                                     main_files: List[Path], cleanup_files: List[Path],
+                                     verbose: bool = False) -> TestResult:
         """Run a suite in transaction isolation mode: all setup + main files in BEGIN/ROLLBACK"""
         suite_result = TestResult(name=manifest.name, is_suite=True)
         tests_dir = Path("tests")
@@ -690,20 +699,32 @@ class DebeeOrchestrator:
 
             # Print and count per section
             for section_name, section_lines in file_outputs.items():
-                if section_name != "(preamble)":
-                    print()
-                    self.print_info(f"  -- {section_name} --")
-                for line in section_lines:
-                    if "PASS" in line:
-                        print(f"  {Colors.GREEN}{line}{Colors.NC}")
-                    elif "FAIL" in line:
-                        print(f"  {Colors.RED}{line}{Colors.NC}")
-                    else:
-                        print(f"  {line}")
-
                 section_text = "\n".join(section_lines)
-                suite_result.pass_count += section_text.count("PASS")
-                suite_result.fail_count += section_text.count("FAIL")
+                section_pass = section_text.count("PASS")
+                section_fail = section_text.count("FAIL")
+                suite_result.pass_count += section_pass
+                suite_result.fail_count += section_fail
+
+                if verbose:
+                    if section_name != "(preamble)":
+                        print()
+                        self.print_info(f"  -- {section_name} --")
+                    for line in section_lines:
+                        if "PASS" in line:
+                            print(f"  {Colors.GREEN}{line}{Colors.NC}")
+                        elif "FAIL" in line:
+                            print(f"  {Colors.RED}{line}{Colors.NC}")
+                        else:
+                            print(f"  {line}")
+                elif section_fail > 0:
+                    if section_name != "(preamble)":
+                        print()
+                        self.print_info(f"  -- {section_name} --")
+                    for line in section_lines:
+                        if "FAIL" in line:
+                            print(f"  {Colors.RED}{line}{Colors.NC}")
+                        elif "ERROR" in line or "error" in line:
+                            print(f"  {Colors.RED}{line}{Colors.NC}")
 
         finally:
             if tmp_file and os.path.exists(tmp_file):
@@ -712,9 +733,13 @@ class DebeeOrchestrator:
         # Run cleanup files individually after the rollback
         if cleanup_files and (manifest.always_cleanup or not suite_result.error):
             for f in cleanup_files:
-                print()
-                self.print_info(f"  -- {f.name} (cleanup) --")
-                cleanup_result = self._invoke_test_sql_file(f)
+                if verbose:
+                    print()
+                    self.print_info(f"  -- {f.name} (cleanup) --")
+                cleanup_result = self._invoke_test_sql_file(f, verbose=verbose)
+                if not cleanup_result.passed and not verbose:
+                    print()
+                    self.print_info(f"  -- {f.name} (cleanup) --")
                 if not cleanup_result.passed:
                     self.print_warning(f"Cleanup file {f.name} had issues (non-fatal)")
 
@@ -723,21 +748,30 @@ class DebeeOrchestrator:
 
     def _invoke_flat_test(self, test_file: Path) -> TestResult:
         """Run a flat test_*.sql file"""
-        print()
-        self.print_info(f"--- {test_file.name} ---")
-        result = self._invoke_test_sql_file(test_file)
+        verbose = getattr(self, 'test_verbose', False)
+        if verbose:
+            print()
+            self.print_info(f"--- {test_file.name} ---")
+        result = self._invoke_test_sql_file(test_file, verbose=verbose)
+        if not verbose and not result.passed:
+            print()
+            print(f"--- {test_file.name} --- {Colors.RED}FAILED{Colors.NC}")
         result.is_suite = False
         return result
 
     def _invoke_suite_test(self, suite_dir: Path) -> TestResult:
         """Run a folder-based test suite"""
+        verbose = getattr(self, 'test_verbose', False)
         manifest = self._read_test_manifest(suite_dir)
         suite_result = TestResult(name=manifest.name, is_suite=True)
 
-        print()
-        self.print_info(f"=== Suite: {manifest.name} ===")
-        if manifest.description:
-            self.print_info(manifest.description)
+        suite_header_printed = False
+        if verbose:
+            print()
+            self.print_info(f"=== Suite: {manifest.name} ===")
+            if manifest.description:
+                self.print_info(manifest.description)
+            suite_header_printed = True
 
         # Discover SQL files matching NNN_*.sql
         sql_pattern = re.compile(r'^(\d{3})_.*\.sql$')
@@ -761,7 +795,7 @@ class DebeeOrchestrator:
 
         # Branch on isolation mode
         if manifest.isolation == "transaction":
-            suite_result = self._invoke_suite_transaction(suite_dir, manifest, main_files, cleanup_files)
+            suite_result = self._invoke_suite_transaction(suite_dir, manifest, main_files, cleanup_files, verbose=verbose)
             suite_result.name = manifest.name
             suite_result.is_suite = True
         elif manifest.isolation == "database":
@@ -780,29 +814,42 @@ class DebeeOrchestrator:
             for setup_path in manifest.setup:
                 resolved = tests_dir / setup_path
                 if resolved.is_file():
-                    print()
-                    self.print_info(f"  -- {setup_path} (shared setup) --")
-                    self._invoke_test_sql_file(resolved)
+                    if verbose:
+                        print()
+                        self.print_info(f"  -- {setup_path} (shared setup) --")
+                    self._invoke_test_sql_file(resolved, verbose=verbose)
                 else:
                     self.print_warning(f"Shared setup file not found: {setup_path}")
 
             # Run main files individually (same as "none")
             main_failed = False
             for f in main_files:
-                print()
-                self.print_info(f"  -- {f.name} --")
-                file_result = self._invoke_test_sql_file(f)
+                if verbose:
+                    print()
+                    self.print_info(f"  -- {f.name} --")
+                file_result = self._invoke_test_sql_file(f, verbose=verbose)
                 suite_result.pass_count += file_result.pass_count
                 suite_result.fail_count += file_result.fail_count
                 if not file_result.passed:
+                    if not suite_header_printed:
+                        print()
+                        self.print_info(f"=== Suite: {manifest.name} ===")
+                        suite_header_printed = True
+                    if not verbose:
+                        print()
+                        self.print_info(f"  -- {f.name} --")
                     main_failed = True
                     break
 
             if cleanup_files and (manifest.always_cleanup or not main_failed):
                 for f in cleanup_files:
-                    print()
-                    self.print_info(f"  -- {f.name} (cleanup) --")
-                    cleanup_result = self._invoke_test_sql_file(f)
+                    if verbose:
+                        print()
+                        self.print_info(f"  -- {f.name} (cleanup) --")
+                    cleanup_result = self._invoke_test_sql_file(f, verbose=verbose)
+                    if not cleanup_result.passed and not verbose:
+                        print()
+                        self.print_info(f"  -- {f.name} (cleanup) --")
                     if not cleanup_result.passed:
                         self.print_warning(f"Cleanup file {f.name} had issues (non-fatal)")
 
@@ -813,31 +860,44 @@ class DebeeOrchestrator:
             for setup_path in manifest.setup:
                 resolved = tests_dir / setup_path
                 if resolved.is_file():
-                    print()
-                    self.print_info(f"  -- {setup_path} (shared setup) --")
-                    self._invoke_test_sql_file(resolved)
+                    if verbose:
+                        print()
+                        self.print_info(f"  -- {setup_path} (shared setup) --")
+                    self._invoke_test_sql_file(resolved, verbose=verbose)
                 else:
                     self.print_warning(f"Shared setup file not found: {setup_path}")
 
             # Run main phase (stop on first failure)
             main_failed = False
             for f in main_files:
-                print()
-                self.print_info(f"  -- {f.name} --")
-                file_result = self._invoke_test_sql_file(f)
+                if verbose:
+                    print()
+                    self.print_info(f"  -- {f.name} --")
+                file_result = self._invoke_test_sql_file(f, verbose=verbose)
                 suite_result.pass_count += file_result.pass_count
                 suite_result.fail_count += file_result.fail_count
 
                 if not file_result.passed:
+                    if not suite_header_printed:
+                        print()
+                        self.print_info(f"=== Suite: {manifest.name} ===")
+                        suite_header_printed = True
+                    if not verbose:
+                        print()
+                        self.print_info(f"  -- {f.name} --")
                     main_failed = True
                     break
 
             # Run cleanup phase (always if always_cleanup, log warnings only)
             if cleanup_files and (manifest.always_cleanup or not main_failed):
                 for f in cleanup_files:
-                    print()
-                    self.print_info(f"  -- {f.name} (cleanup) --")
-                    cleanup_result = self._invoke_test_sql_file(f)
+                    if verbose:
+                        print()
+                        self.print_info(f"  -- {f.name} (cleanup) --")
+                    cleanup_result = self._invoke_test_sql_file(f, verbose=verbose)
+                    if not cleanup_result.passed and not verbose:
+                        print()
+                        self.print_info(f"  -- {f.name} (cleanup) --")
                     if not cleanup_result.passed:
                         self.print_warning(f"Cleanup file {f.name} had issues (non-fatal)")
 
@@ -845,9 +905,13 @@ class DebeeOrchestrator:
 
         status = "PASSED" if suite_result.passed else "FAILED"
         if suite_result.passed:
-            print()
-            self.print_success(f"Suite {manifest.name}: {status}")
+            if verbose:
+                print()
+                self.print_success(f"Suite {manifest.name}: {status}")
         else:
+            if not suite_header_printed:
+                print()
+                self.print_info(f"=== Suite: {manifest.name} ===")
             print()
             self.print_error(f"Suite {manifest.name}: {status}")
 
@@ -906,7 +970,9 @@ class DebeeOrchestrator:
 
         file_count = sum(1 for t, _ in test_items if t == "file")
         suite_count = sum(1 for t, _ in test_items if t == "suite")
-        self.print_info(f"Running {len(test_items)} test item(s) ({file_count} file(s), {suite_count} suite(s))...")
+        verbose = getattr(self, 'test_verbose', False)
+        if verbose:
+            self.print_info(f"Running {len(test_items)} test item(s) ({file_count} file(s), {suite_count} suite(s))...")
 
         results: List[TestResult] = []
 
@@ -998,13 +1064,15 @@ class DebeeOrchestrator:
             end_number: int = -1,
             sql_file: Optional[str] = None,
             sql_command: Optional[str] = None,
-            test_filter: str = "all") -> bool:
+            test_filter: str = "all",
+            test_verbose: bool = False) -> bool:
         """Run orchestration with specified operations"""
         self.update_start_number = start_number
         self.update_end_number = end_number
         self.sql_file = sql_file
         self.sql_command = sql_command
         self.test_filter = test_filter
+        self.test_verbose = test_verbose
 
         # Load environment files
         if self.environment:
@@ -1104,6 +1172,9 @@ Environment files:
     parser.add_argument('--test-filter',
                         default='all',
                         help='Filter test files by pattern (for runTests operation, default: all)')
+    parser.add_argument('--test-verbose',
+                        action='store_true',
+                        help='Show all test output including PASS lines (default: silent, only failures shown)')
     parser.add_argument('--no-color',
                         action='store_true',
                         help='Disable colored output')
@@ -1128,7 +1199,8 @@ Environment files:
 
     if orchestrator.run(operations, args.start_number, args.end_number,
                         sql_file=args.sql_file, sql_command=args.sql,
-                        test_filter=args.test_filter):
+                        test_filter=args.test_filter,
+                        test_verbose=args.test_verbose):
         return 0
     else:
         return 1

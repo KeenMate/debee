@@ -13,6 +13,7 @@ UPDATE_END_NUMBER=-1
 SQL_FILE=""
 SQL_COMMAND=""
 TEST_FILTER="all"
+TEST_VERBOSE=false
 
 # Color output
 RED='\033[0;31m'
@@ -540,23 +541,34 @@ invoke_test_sql_file() {
         _TEST_RESULT_PASSED=false
     fi
 
-    # Colorize and print output
-    while IFS= read -r line; do
-        if [[ "$line" == *"PASS"* ]]; then
-            echo -e "  ${GREEN}${line}${NC}"
-        elif [[ "$line" == *"FAIL"* ]]; then
-            echo -e "  ${RED}${line}${NC}"
-        else
-            echo "  $line"
-        fi
-    done <<< "$output"
-
     # Count PASS/FAIL occurrences
     _TEST_RESULT_PASS_COUNT=$(echo "$output" | grep -c "PASS" || true)
     _TEST_RESULT_FAIL_COUNT=$(echo "$output" | grep -c "FAIL" || true)
 
     if [[ $_TEST_RESULT_FAIL_COUNT -gt 0 ]] || [[ "$_TEST_RESULT_ERROR" == true ]]; then
         _TEST_RESULT_PASSED=false
+    fi
+
+    # Colorize and print output
+    if [[ "$TEST_VERBOSE" == true ]]; then
+        while IFS= read -r line; do
+            if [[ "$line" == *"PASS"* ]]; then
+                echo -e "  ${GREEN}${line}${NC}"
+            elif [[ "$line" == *"FAIL"* ]]; then
+                echo -e "  ${RED}${line}${NC}"
+            else
+                echo "  $line"
+            fi
+        done <<< "$output"
+    elif [[ "$_TEST_RESULT_PASSED" == false ]]; then
+        # Silent mode: only print FAIL lines and error context
+        while IFS= read -r line; do
+            if [[ "$line" == *"FAIL"* ]]; then
+                echo -e "  ${RED}${line}${NC}"
+            elif [[ "$line" == *"ERROR"* ]] || [[ "$line" == *"error"* ]]; then
+                echo -e "  ${RED}${line}${NC}"
+            fi
+        done <<< "$output"
     fi
 }
 
@@ -637,35 +649,56 @@ invoke_suite_transaction() {
 
     # Print and count per section
     for section_name in "${file_order[@]}"; do
-        if [[ "$section_name" != "(preamble)" ]]; then
-            echo ""
-            print_info "  -- $section_name --"
-        fi
-
-        while IFS= read -r line; do
-            if [[ "$line" == *"PASS"* ]]; then
-                echo -e "  ${GREEN}${line}${NC}"
-            elif [[ "$line" == *"FAIL"* ]]; then
-                echo -e "  ${RED}${line}${NC}"
-            else
-                echo "  $line"
-            fi
-        done <<< "${file_outputs[$section_name]}"
-
         local section_pass section_fail
         section_pass=$(echo "${file_outputs[$section_name]}" | grep -c "PASS" || true)
         section_fail=$(echo "${file_outputs[$section_name]}" | grep -c "FAIL" || true)
         _SUITE_PASS_COUNT=$((_SUITE_PASS_COUNT + section_pass))
         _SUITE_FAIL_COUNT=$((_SUITE_FAIL_COUNT + section_fail))
+
+        if [[ "$TEST_VERBOSE" == true ]]; then
+            if [[ "$section_name" != "(preamble)" ]]; then
+                echo ""
+                print_info "  -- $section_name --"
+            fi
+
+            while IFS= read -r line; do
+                if [[ "$line" == *"PASS"* ]]; then
+                    echo -e "  ${GREEN}${line}${NC}"
+                elif [[ "$line" == *"FAIL"* ]]; then
+                    echo -e "  ${RED}${line}${NC}"
+                else
+                    echo "  $line"
+                fi
+            done <<< "${file_outputs[$section_name]}"
+        elif [[ $section_fail -gt 0 ]]; then
+            if [[ "$section_name" != "(preamble)" ]]; then
+                echo ""
+                print_info "  -- $section_name --"
+            fi
+
+            while IFS= read -r line; do
+                if [[ "$line" == *"FAIL"* ]]; then
+                    echo -e "  ${RED}${line}${NC}"
+                elif [[ "$line" == *"ERROR"* ]] || [[ "$line" == *"error"* ]]; then
+                    echo -e "  ${RED}${line}${NC}"
+                fi
+            done <<< "${file_outputs[$section_name]}"
+        fi
     done
 
     # Run cleanup files individually after rollback
     if [[ ${#_TXN_CLEANUP_FILES[@]} -gt 0 ]] && { [[ "$_MANIFEST_ALWAYS_CLEANUP" == true ]] || [[ "$has_error" == false ]]; }; then
         for f in "${_TXN_CLEANUP_FILES[@]}"; do
             [[ -z "$f" ]] && continue
-            echo ""
-            print_info "  -- $(basename "$f") (cleanup) --"
+            if [[ "$TEST_VERBOSE" == true ]]; then
+                echo ""
+                print_info "  -- $(basename "$f") (cleanup) --"
+            fi
             invoke_test_sql_file "$f"
+            if [[ "$_TEST_RESULT_PASSED" == false ]] && [[ "$TEST_VERBOSE" == false ]]; then
+                echo ""
+                print_info "  -- $(basename "$f") (cleanup) --"
+            fi
             if [[ "$_TEST_RESULT_PASSED" == false ]]; then
                 print_warning "Cleanup file $(basename "$f") had issues (non-fatal)"
             fi
@@ -682,9 +715,15 @@ invoke_suite_transaction() {
 # Run a flat test_*.sql file
 invoke_flat_test() {
     local test_file="$1"
-    echo ""
-    print_info "--- $(basename "$test_file") ---"
+    if [[ "$TEST_VERBOSE" == true ]]; then
+        echo ""
+        print_info "--- $(basename "$test_file") ---"
+    fi
     invoke_test_sql_file "$test_file"
+    if [[ "$TEST_VERBOSE" == false ]] && [[ "$_TEST_RESULT_PASSED" == false ]]; then
+        echo ""
+        echo -e "--- $(basename "$test_file") --- ${RED}FAILED${NC}"
+    fi
 }
 
 # Run a folder-based test suite
@@ -696,11 +735,15 @@ invoke_suite_test() {
     local suite_pass_count=0
     local suite_fail_count=0
     local suite_passed=true
+    local suite_header_printed=false
 
-    echo ""
-    print_info "=== Suite: $_MANIFEST_NAME ==="
-    if [[ -n "$_MANIFEST_DESCRIPTION" ]]; then
-        print_info "$_MANIFEST_DESCRIPTION"
+    if [[ "$TEST_VERBOSE" == true ]]; then
+        echo ""
+        print_info "=== Suite: $_MANIFEST_NAME ==="
+        if [[ -n "$_MANIFEST_DESCRIPTION" ]]; then
+            print_info "$_MANIFEST_DESCRIPTION"
+        fi
+        suite_header_printed=true
     fi
 
     # Discover SQL files matching NNN_*.sql
@@ -752,8 +795,10 @@ invoke_suite_test() {
         for setup_path in "${_MANIFEST_SETUP[@]}"; do
             local resolved="$tests_dir/$setup_path"
             if [[ -f "$resolved" ]]; then
-                echo ""
-                print_info "  -- $setup_path (shared setup) --"
+                if [[ "$TEST_VERBOSE" == true ]]; then
+                    echo ""
+                    print_info "  -- $setup_path (shared setup) --"
+                fi
                 invoke_test_sql_file "$resolved"
             else
                 print_warning "Shared setup file not found: $setup_path"
@@ -764,12 +809,23 @@ invoke_suite_test() {
         local main_failed=false
         for f in "${main_files[@]}"; do
             [[ -z "$f" ]] && continue
-            echo ""
-            print_info "  -- $(basename "$f") --"
+            if [[ "$TEST_VERBOSE" == true ]]; then
+                echo ""
+                print_info "  -- $(basename "$f") --"
+            fi
             invoke_test_sql_file "$f"
             suite_pass_count=$((suite_pass_count + _TEST_RESULT_PASS_COUNT))
             suite_fail_count=$((suite_fail_count + _TEST_RESULT_FAIL_COUNT))
             if [[ "$_TEST_RESULT_PASSED" == false ]]; then
+                if [[ "$suite_header_printed" == false ]]; then
+                    echo ""
+                    print_info "=== Suite: $_MANIFEST_NAME ==="
+                    suite_header_printed=true
+                fi
+                if [[ "$TEST_VERBOSE" == false ]]; then
+                    echo ""
+                    print_info "  -- $(basename "$f") --"
+                fi
                 main_failed=true
                 break
             fi
@@ -778,9 +834,15 @@ invoke_suite_test() {
         if [[ ${#cleanup_files[@]} -gt 0 ]] && { [[ "$_MANIFEST_ALWAYS_CLEANUP" == true ]] || [[ "$main_failed" == false ]]; }; then
             for f in "${cleanup_files[@]}"; do
                 [[ -z "$f" ]] && continue
-                echo ""
-                print_info "  -- $(basename "$f") (cleanup) --"
+                if [[ "$TEST_VERBOSE" == true ]]; then
+                    echo ""
+                    print_info "  -- $(basename "$f") (cleanup) --"
+                fi
                 invoke_test_sql_file "$f"
+                if [[ "$_TEST_RESULT_PASSED" == false ]] && [[ "$TEST_VERBOSE" == false ]]; then
+                    echo ""
+                    print_info "  -- $(basename "$f") (cleanup) --"
+                fi
                 if [[ "$_TEST_RESULT_PASSED" == false ]]; then
                     print_warning "Cleanup file $(basename "$f") had issues (non-fatal)"
                 fi
@@ -798,8 +860,10 @@ invoke_suite_test() {
         for setup_path in "${_MANIFEST_SETUP[@]}"; do
             local resolved="$tests_dir/$setup_path"
             if [[ -f "$resolved" ]]; then
-                echo ""
-                print_info "  -- $setup_path (shared setup) --"
+                if [[ "$TEST_VERBOSE" == true ]]; then
+                    echo ""
+                    print_info "  -- $setup_path (shared setup) --"
+                fi
                 invoke_test_sql_file "$resolved"
             else
                 print_warning "Shared setup file not found: $setup_path"
@@ -810,13 +874,24 @@ invoke_suite_test() {
         local main_failed=false
         for f in "${main_files[@]}"; do
             [[ -z "$f" ]] && continue
-            echo ""
-            print_info "  -- $(basename "$f") --"
+            if [[ "$TEST_VERBOSE" == true ]]; then
+                echo ""
+                print_info "  -- $(basename "$f") --"
+            fi
             invoke_test_sql_file "$f"
             suite_pass_count=$((suite_pass_count + _TEST_RESULT_PASS_COUNT))
             suite_fail_count=$((suite_fail_count + _TEST_RESULT_FAIL_COUNT))
 
             if [[ "$_TEST_RESULT_PASSED" == false ]]; then
+                if [[ "$suite_header_printed" == false ]]; then
+                    echo ""
+                    print_info "=== Suite: $_MANIFEST_NAME ==="
+                    suite_header_printed=true
+                fi
+                if [[ "$TEST_VERBOSE" == false ]]; then
+                    echo ""
+                    print_info "  -- $(basename "$f") --"
+                fi
                 main_failed=true
                 break
             fi
@@ -826,9 +901,15 @@ invoke_suite_test() {
         if [[ ${#cleanup_files[@]} -gt 0 ]] && { [[ "$_MANIFEST_ALWAYS_CLEANUP" == true ]] || [[ "$main_failed" == false ]]; }; then
             for f in "${cleanup_files[@]}"; do
                 [[ -z "$f" ]] && continue
-                echo ""
-                print_info "  -- $(basename "$f") (cleanup) --"
+                if [[ "$TEST_VERBOSE" == true ]]; then
+                    echo ""
+                    print_info "  -- $(basename "$f") (cleanup) --"
+                fi
                 invoke_test_sql_file "$f"
+                if [[ "$_TEST_RESULT_PASSED" == false ]] && [[ "$TEST_VERBOSE" == false ]]; then
+                    echo ""
+                    print_info "  -- $(basename "$f") (cleanup) --"
+                fi
                 if [[ "$_TEST_RESULT_PASSED" == false ]]; then
                     print_warning "Cleanup file $(basename "$f") had issues (non-fatal)"
                 fi
@@ -843,9 +924,15 @@ invoke_suite_test() {
     fi
 
     if [[ "$suite_passed" == true ]]; then
-        echo ""
-        print_success "Suite $_MANIFEST_NAME: PASSED"
+        if [[ "$TEST_VERBOSE" == true ]]; then
+            echo ""
+            print_success "Suite $_MANIFEST_NAME: PASSED"
+        fi
     else
+        if [[ "$suite_header_printed" == false ]]; then
+            echo ""
+            print_info "=== Suite: $_MANIFEST_NAME ==="
+        fi
         echo ""
         print_error "Suite $_MANIFEST_NAME: FAILED"
     fi
@@ -956,7 +1043,9 @@ for name in d.get('order', []):
         [[ "$t" == "suite" ]] && suite_count=$((suite_count + 1))
     done
 
-    print_info "Running ${#item_types[@]} test item(s) ($file_count file(s), $suite_count suite(s))..."
+    if [[ "$TEST_VERBOSE" == true ]]; then
+        print_info "Running ${#item_types[@]} test item(s) ($file_count file(s), $suite_count suite(s))..."
+    fi
 
     # Collect results
     local all_pass_counts=()
@@ -1059,6 +1148,7 @@ Options:
     --sql-file FILE            SQL file to execute (for execSql operation)
     --sql "QUERY"              SQL command to execute inline (for execSql operation)
     --test-filter PATTERN      Filter test files by pattern (for runTests operation, default: all)
+    --test-verbose             Show all test output including PASS lines (default: silent, only failures shown)
     -h, --help                 Show this help message
 
 Examples:
@@ -1109,6 +1199,10 @@ while [[ $# -gt 0 ]]; do
         --test-filter)
             TEST_FILTER="$2"
             shift 2
+            ;;
+        --test-verbose)
+            TEST_VERBOSE=true
+            shift
             ;;
         -h|--help)
             show_usage
