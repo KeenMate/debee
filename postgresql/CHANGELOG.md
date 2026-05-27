@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **PowerShell help screen**: `.\debee.ps1` (no args) previously triggered an interactive prompt for the mandatory `-Operations` parameter; it now prints a styled help screen listing operations, options, and examples. The `-Operations` parameter is no longer mandatory and has no default — running fullService is now an explicit choice (`-Operations fullService`) rather than the silent default of an empty invocation. New `-Help`/`-h`/`-?` switch shows the same screen explicitly.
 
+### Docs
+- **Windows UTF-8 setup**: New section in `docs/cross-platform.md` explaining how to mitigate `invalid byte sequence for encoding "UTF8"` errors when passing non-ASCII text via `--sql` on Windows. Covers per-shell configuration for PowerShell (`$PROFILE`), Git Bash (`~/.bashrc` + mintty), and Python (`PYTHONUTF8=1`), plus a `PGCLIENTENCODING=WIN1250` per-invocation fallback and the Windows system-wide UTF-8 locale toggle. No script changes — the fix lives in the shell environment, since debee passes `--sql` strings straight through to psql.
+
 ## [1.0.1] - 2026-03-05
 
 ### Fixed

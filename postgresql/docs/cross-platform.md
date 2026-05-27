@@ -137,3 +137,65 @@ All three implementations support the same set of operations:
 | Disable colors | — | — | `--no-color` flag |
 | JSON parsing (test manifests) | ConvertFrom-Json | Python one-liner | json module |
 | Environment inheritance | Automatic | Automatic | Explicit `env=os.environ` |
+
+## Windows: UTF-8 Setup
+
+If you pass SQL with non-ASCII characters via `--sql` / `-Sql` (e.g. Czech, German, Polish text) on Windows, you may see psql errors like:
+
+```
+ERROR:  invalid byte sequence for encoding "UTF8": 0xed 0x6b 0x6f
+```
+
+This happens because the Windows console / shell encodes the command-line string in the legacy ANSI code page (e.g. CP1250) instead of UTF-8, and psql rejects the resulting bytes. Debee passes `--sql` strings straight through to psql, so the fix belongs in your shell environment, not the orchestrator.
+
+Configure your shell **once** and the problem goes away for all three orchestrators.
+
+### PowerShell
+
+Add to your `$PROFILE`:
+
+```powershell
+[Console]::InputEncoding  = [System.Text.UTF8Encoding]::new()
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+$OutputEncoding = [System.Text.UTF8Encoding]::new()
+$env:PGCLIENTENCODING = 'UTF8'
+chcp 65001 > $null
+```
+
+### Git Bash / MSYS
+
+Add to `~/.bashrc`:
+
+```bash
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+export PGCLIENTENCODING=UTF8
+```
+
+Also set the terminal itself to UTF-8: **mintty → right-click title bar → Options → Text → Character set: UTF-8**. Without this, typed characters become CP1250 bytes before bash ever sees them.
+
+### Python
+
+Set as system or per-shell environment variables:
+
+```
+PYTHONUTF8=1
+PYTHONIOENCODING=utf-8
+PGCLIENTENCODING=UTF8
+```
+
+`PYTHONUTF8=1` (Py 3.7+) forces Python's "UTF-8 mode" for all I/O and subprocess calls on Windows.
+
+### Per-invocation fallback
+
+If you can't change your shell config, set `PGCLIENTENCODING` to match whatever encoding the shell is actually sending — for Czech Windows that's usually `WIN1250`:
+
+```bash
+PGCLIENTENCODING=WIN1250 ./debee.sh -o execSql --sql "SELECT 'krejčíková';"
+```
+
+PostgreSQL will transcode the bytes server-side. Alternatively, save the SQL to a UTF-8 file and use `--sql-file` instead of `--sql`.
+
+### System-wide option
+
+Windows 10 1903+ has a UTF-8 system locale toggle: **Settings → Time & Language → Language → Administrative language settings → Change system locale → "Beta: Use Unicode UTF-8 for worldwide language support"**. Enabling it sets the system ANSI code page to UTF-8 (65001) and makes the per-shell config unnecessary. Some legacy apps that hardcode CP1250 assumptions can misbehave with it on.
