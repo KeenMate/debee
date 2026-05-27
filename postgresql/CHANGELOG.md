@@ -5,6 +5,17 @@ All notable changes to the PostgreSQL database migration tools will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-05-27
+
+### Added
+- **Silent mode**: New `-q`/`--silent` flag (bash, Python) and `-Silent`/`-q` switch (PowerShell) suppresses orchestration scaffolding output — env-file load messages, "Processing: <op>" / "Performing <op>..." banners, execSql banners, migration progress lines, and the final "All operations completed successfully!" line. Warnings, errors, and psql/pg_restore output remain visible, so piping `execSql --sql "..."` results no longer requires `2>/dev/null` tricks. Test runner output is unaffected (still controlled by `--test-verbose`).
+- **Version flag**: New `-V`/`--version` flag (bash, Python) and `-Version`/`-V` switch (PowerShell) prints the orchestrator version and exits. Version constants (`DEBEE_VERSION` in bash, `__version__` in Python, `$DebeeVersion` in PowerShell) are now hard-coded at the top of each script so the CHANGELOG number is verifiable from the binary.
+
+- **Production confirmation**: New env variable `DBPRODENVIRONMENT=true` marks an env file as production. When set, debee prints a summary (host, port, user, target DB, operations, SQL or migration range when applicable) and requires the user to type `yes` (full word, case-insensitive) before any operation runs. New `-y`/`--yes` flag (bash, Python) and `-Yes`/`-y` switch (PowerShell) bypasses the prompt for automation/CI use. The confirmation banner prints regardless of `--silent` — it is not orchestration chatter, it is a safety gate.
+
+### Changed
+- **PowerShell help screen**: `.\debee.ps1` (no args) previously triggered an interactive prompt for the mandatory `-Operations` parameter; it now prints a styled help screen listing operations, options, and examples. The `-Operations` parameter is no longer mandatory and has no default — running fullService is now an explicit choice (`-Operations fullService`) rather than the silent default of an empty invocation. New `-Help`/`-h`/`-?` switch shows the same screen explicitly.
+
 ## [1.0.1] - 2026-03-05
 
 ### Fixed

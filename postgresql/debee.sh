@@ -3,6 +3,8 @@
 # Debee - PostgreSQL Migration Orchestrator (Bash Version)
 # Pure orchestration script - all database logic lives in external SQL files
 
+DEBEE_VERSION="1.0.2"
+
 set -e  # Exit on error
 
 # Default values
@@ -14,6 +16,8 @@ SQL_FILE=""
 SQL_COMMAND=""
 TEST_FILTER="all"
 TEST_VERBOSE=false
+SILENT=false
+ASSUME_YES=false
 
 # Color output
 RED='\033[0;31m'
@@ -31,10 +35,12 @@ print_warning() {
 }
 
 print_success() {
+    [[ "$SILENT" == true ]] && return 0
     echo -e "${GREEN}$1${NC}"
 }
 
 print_info() {
+    [[ "$SILENT" == true ]] && return 0
     echo "$1"
 }
 
@@ -1152,6 +1158,11 @@ Options:
     --sql "QUERY"              SQL command to execute inline (for execSql operation)
     --test-filter PATTERN      Filter test files by pattern (for runTests operation, default: all)
     --test-verbose             Show all test output including PASS lines (default: silent, only failures shown)
+    -q, --silent               Suppress orchestration messages (env loading, operation banners,
+                               final success). Warnings, errors, and psql output remain visible.
+    -y, --yes                  Skip production confirmation prompt (required for automation
+                               when DBPRODENVIRONMENT=true is set in the env file)
+    -V, --version              Print version and exit
     -h, --help                 Show this help message
 
 Examples:
@@ -1207,6 +1218,18 @@ while [[ $# -gt 0 ]]; do
             TEST_VERBOSE=true
             shift
             ;;
+        -q|--silent)
+            SILENT=true
+            shift
+            ;;
+        -y|--yes)
+            ASSUME_YES=true
+            shift
+            ;;
+        -V|--version)
+            echo "debee.sh $DEBEE_VERSION"
+            exit 0
+            ;;
         -h|--help)
             show_usage
             exit 0
@@ -1247,6 +1270,57 @@ fi
 # Set default tool paths if not defined
 : ${DBPSQLFILE:=psql}
 : ${DBPGRESTOREFILE:=pg_restore}
+
+# Production confirmation
+confirm_production() {
+    local prod_flag="${DBPRODENVIRONMENT,,}"  # lowercase
+    if [[ "$prod_flag" != "true" && "$prod_flag" != "1" ]]; then
+        return 0
+    fi
+    if [[ "$ASSUME_YES" == true ]]; then
+        return 0
+    fi
+
+    local ops_csv
+    ops_csv=$(IFS=,; echo "${OPERATIONS[*]}")
+
+    # Always print, even in silent mode — confirmation must be visible
+    echo "" >&2
+    echo -e "${RED}==============================================${NC}" >&2
+    echo -e "${RED}  PRODUCTION ENVIRONMENT - CONFIRMATION REQUIRED${NC}" >&2
+    echo -e "${RED}==============================================${NC}" >&2
+    echo "" >&2
+    [[ -n "$ENVIRONMENT" ]] && echo "  Environment:  $ENVIRONMENT" >&2
+    echo "  Host:         ${PGHOST:-localhost}:${PGPORT:-5432}" >&2
+    echo "  User:         ${PGUSER:-<unset>}" >&2
+    echo "  Target DB:    ${DBDESTDB:-<unset>}" >&2
+    echo "  Operations:   $ops_csv" >&2
+    if [[ " ${OPERATIONS[*]} " == *" execSql "* ]]; then
+        if [[ -n "$SQL_FILE" ]]; then
+            echo "  SQL file:     $SQL_FILE" >&2
+        elif [[ -n "$SQL_COMMAND" ]]; then
+            echo "  SQL command:  $SQL_COMMAND" >&2
+        else
+            echo "  SQL:          (interactive psql session)" >&2
+        fi
+    fi
+    if [[ " ${OPERATIONS[*]} " == *" updateDatabase "* ]]; then
+        echo "  Migration range: ${UPDATE_START_NUMBER} -> ${UPDATE_END_NUMBER}" >&2
+    fi
+    echo "" >&2
+
+    local response=""
+    read -r -p '  Type "yes" to proceed (anything else aborts): ' response || true
+    echo "" >&2
+
+    local response_lower="${response,,}"
+    if [[ "$response_lower" != "yes" ]]; then
+        print_error "Production run aborted by user."
+        exit 1
+    fi
+}
+
+confirm_production
 
 # Process operations
 for operation in "${OPERATIONS[@]}"; do

@@ -1,18 +1,99 @@
 #!/usr/bin/env pwsh
 
+[CmdletBinding(DefaultParameterSetName = "Run")]
 param (
 	# Parameter help description
 	[string]$Environment,
-	[Parameter(Mandatory = $true)]
+	[Parameter(ParameterSetName = "Run")]
 	[ValidateSet("restoreDatabase", "recreateDatabase", "updateDatabase", "preUpdateScripts", "postUpdateScripts", "prepareVersionTable", "execSql", "runTests", "fullService")]
-	[string[]]$Operations = @("fullService"),
+	[string[]]$Operations,
 	[int]$UpdateStartNumber = -1,
 	[int]$UpdateEndNumber = -1,
 	[string]$SqlFile,
 	[string]$Sql,
 	[string]$TestFilter = "all",
-	[switch]$TestVerbose
+	[switch]$TestVerbose,
+	[Alias("q")]
+	[switch]$Silent,
+	[Alias("y")]
+	[switch]$Yes,
+	[Parameter(Mandatory = $true, ParameterSetName = "Version")]
+	[Alias("V")]
+	[switch]$Version,
+	[Parameter(Mandatory = $true, ParameterSetName = "Help")]
+	[Alias("h", "?")]
+	[switch]$Help
 )
+
+$DebeeVersion = "1.0.2"
+
+function Show-DebeeHelp {
+	Write-Host ""
+	Write-Host "  debee v$DebeeVersion" -ForegroundColor Cyan -NoNewline
+	Write-Host " — PostgreSQL Migration Orchestrator"
+	Write-Host "  Use -Help for full reference"
+	Write-Host ""
+	Write-Host "  Usage:"
+	Write-Host "    .\debee.ps1 -Operations <op>[,<op>...] [options]"
+	Write-Host ""
+	Write-Host "  Operations:"
+	Write-Host "    recreateDatabase             " -NoNewline -ForegroundColor Green
+	Write-Host "Drop and recreate database from script"
+	Write-Host "    restoreDatabase              " -NoNewline -ForegroundColor Green
+	Write-Host "Restore from backup (file/dir/custom)"
+	Write-Host "    updateDatabase               " -NoNewline -ForegroundColor Green
+	Write-Host "Apply numbered migration files in NNN_*.sql range"
+	Write-Host "    preUpdateScripts             " -NoNewline -ForegroundColor Green
+	Write-Host "Run scripts listed in DBPREUPDATESCRIPTS"
+	Write-Host "    postUpdateScripts            " -NoNewline -ForegroundColor Green
+	Write-Host "Run scripts listed in DBPOSTUPDATESCRIPTS"
+	Write-Host "    prepareVersionTable          " -NoNewline -ForegroundColor Green
+	Write-Host "Extract DB objects to JSON/MD/CSV/HTML"
+	Write-Host "    execSql                      " -NoNewline -ForegroundColor Green
+	Write-Host "Run ad-hoc SQL via -Sql or -SqlFile (interactive if neither)"
+	Write-Host "    runTests                     " -NoNewline -ForegroundColor Green
+	Write-Host "Run SQL test files / suites from tests/"
+	Write-Host "    fullService                  " -NoNewline -ForegroundColor Green
+	Write-Host "recreate + restore + pre/post + update (destructive)"
+	Write-Host ""
+	Write-Host "  Options:"
+	Write-Host "    -Environment <name>          Load debee.<name>.env instead of debee.env"
+	Write-Host "    -UpdateStartNumber <n>       First migration file number (default: env DBUPDATESTARTNUMBER)"
+	Write-Host "    -UpdateEndNumber <n>         Last migration file number (default: env DBUPDATEENDNUMBER)"
+	Write-Host "    -SqlFile <path>              SQL file to execute (execSql)"
+	Write-Host "    -Sql ""<query>""               SQL command to execute inline (execSql)"
+	Write-Host "    -TestFilter <pattern>        Filter test files by pattern (runTests, default: all)"
+	Write-Host "    -TestVerbose                 Show all test output including PASS lines"
+	Write-Host "    -Silent, -q                  Suppress orchestration messages (env load, banners, progress)"
+	Write-Host "    -Yes, -y                     Skip production confirmation (DBPRODENVIRONMENT=true bypass)"
+	Write-Host "    -Version, -V                 Print version and exit"
+	Write-Host "    -Help, -h                    Show this help"
+	Write-Host ""
+	Write-Host "  Examples:"
+	Write-Host "    .\debee.ps1 -Operations execSql -Sql ""SELECT 1;"""
+	Write-Host "    .\debee.ps1 -Operations execSql -Sql ""SELECT version();"" -Silent"
+	Write-Host "    .\debee.ps1 -Operations updateDatabase -UpdateStartNumber 10 -UpdateEndNumber 20"
+	Write-Host "    .\debee.ps1 -Operations runTests -TestFilter connection"
+	Write-Host "    .\debee.ps1 -Environment prod -Operations fullService"
+	Write-Host ""
+}
+
+if ($Version) {
+	Write-Host "debee.ps1 $DebeeVersion"
+	exit 0
+}
+
+if ($Help -or -not $Operations) {
+	Show-DebeeHelp
+	exit 0
+}
+
+function Write-Info {
+	param([Parameter(ValueFromRemainingArguments = $true)]$Message)
+	if (-not $Silent) {
+		Write-Host @Message
+	}
+}
 
 function Prompt-User {
 	param(
@@ -103,7 +184,7 @@ function Prepare-Environment {
 			}
 		}
 
-		Write-Host "Environment variables set successfully from $envFilePath"
+		Write-Info "Environment variables set successfully from $envFilePath"
 	}
 	else {
 		Write-Host "File not found: $envFilePath"
@@ -150,7 +231,7 @@ function Get-FilesByNumericPrefix {
 	foreach ($file in $files) {
 		# Skip files that don't match pattern: 3 digits + underscore + name + .sql extension
 		if ($file.Name -notmatch '^\d{3}_.*\.sql$') {
-			Write-Host "Skipping file (not matching pattern XXX_*.sql): $($file.Name)"
+			Write-Info "Skipping file (not matching pattern XXX_*.sql): $($file.Name)"
 			continue
 		}
 
@@ -158,13 +239,13 @@ function Get-FilesByNumericPrefix {
 		$prefix = [int]($file.Name -replace '^(\d{3})_.*$', '$1')
 
 		if (($prefix -ge $StartNumber -or $StartNumber -eq -1) -and ($prefix -le $EndNumber -or $EndNumber -eq -1)) {
-			Write-Host "File: $( $file.Name ) is within the update range."
+			Write-Info "File: $( $file.Name ) is within the update range."
 			# Add the matching file to the $matchingFiles array
 			$matchingFiles += $file
 		}
 	}
 
-	Write-Host "Number of matching files: $( $matchingFiles.Count )"
+	Write-Info "Number of matching files: $( $matchingFiles.Count )"
 
 	return $matchingFiles
 }
@@ -172,7 +253,7 @@ function Get-FilesByNumericPrefix {
 function Recreate-Database {
 	Set-CurrentDatabase -databaseName $Env:DBCONNECTDB
 
-	Write-Host "Recreating database on host: "$Env:PGHOST", connected to: "$Env:PGDATABASE
+	Write-Info "Recreating database on host: "$Env:PGHOST", connected to: "$Env:PGDATABASE
 	& $Env:DBPSQLFILE -f $Env:DBRECREATESCRIPT
 }
 
@@ -183,7 +264,7 @@ function Restore-Database {
 		[string]$backupType
 	)
 
-	Write-Host "Calculating backup type and path"
+	Write-Info "Calculating backup type and path"
 
 	if ( [string]::IsNullOrEmpty($backupFilepath)) {
 		$backupFilepath = $Env:DBBACKUPFILE
@@ -208,14 +289,14 @@ function Restore-Database {
 
 	switch ($backupType) {
 		"file" {
-			Write-Host "Restoring from file: "$backupFilepath
+			Write-Info "Restoring from file: "$backupFilepath
 
 			Set-CurrentDatabase -databaseName $Env:DBDESTDB
 
 			& $Env:DBPSQLFILE -f "$backupFilepath"
 		}
 		"dir" {
-			Write-Host "Restoring from directory: "$backupFilepath
+			Write-Info "Restoring from directory: "$backupFilepath
 
 			Set-CurrentDatabase -databaseName $Env:DBDESTDB
 
@@ -227,7 +308,7 @@ function Restore-Database {
 			}
 		}
 		"custom" {
-			Write-Host "Restoring from custom archive: "$backupFilepath
+			Write-Info "Restoring from custom archive: "$backupFilepath
 
 			Set-CurrentDatabase -databaseName $Env:DBDESTDB
 
@@ -248,7 +329,7 @@ function Restore-Database {
 function Update-Database {
 	$files = Get-FilesByNumericPrefix -StartNumber $UpdateStartNumber -EndNumber $UpdateEndNumber
 
-	Write-Host "Number of returned files: $( $files.Count )"
+	Write-Info "Number of returned files: $( $files.Count )"
 
 	Update-DatabaseWithFiles -Files $files
 }
@@ -257,7 +338,7 @@ function Run-PreUpdateScripts {
 	$scriptsToRun = @()
 
 	if (($Env:DBPREUPDATESCRIPTS).Length -eq 0) {
-		Write-Host "No preupdate scripts, skipping the step"
+		Write-Info "No preupdate scripts, skipping the step"
 		return
 	}
 
@@ -272,7 +353,7 @@ function Run-PreUpdateScripts {
 		# Check if the file exists
 		if (Test-Path -Path $scriptPath -PathType Leaf) {
 			$scriptsToRun += $scriptPath
-			Write-Host "Pre update script file: $( $scriptPath ) to be run."
+			Write-Info "Pre update script file: $( $scriptPath ) to be run."
 		}
 		else {
 			Write-Warning "File does not exist: $scriptPath"
@@ -286,7 +367,7 @@ function Run-PostUpdateScripts {
 	$scriptsToRun = @()
 
 	if (($Env:DBPOSTUPDATESCRIPTS).Length -eq 0) {
-		Write-Host "No postupdate scripts, skipping the step"
+		Write-Info "No postupdate scripts, skipping the step"
 		return
 	}
 
@@ -306,7 +387,7 @@ function Run-PostUpdateScripts {
 		# Check if the file exists
 		if (Test-Path -Path $scriptPath -PathType Leaf) {
 			$scriptsToRun += $scriptPath
-			Write-Host "Post update script file: $( $scriptPath ) to be run."
+			Write-Info "Post update script file: $( $scriptPath ) to be run."
 		}
 		else {
 			Write-Warning "File does not exist: $scriptPath"
@@ -322,15 +403,15 @@ function Update-DatabaseWithFiles {
 		[string[]]$Filepaths
 	)
 
-	Write-Host "Updating database .."
+	Write-Info "Updating database .."
 	Set-CurrentDatabase -databaseName $Env:DBDESTDB
 
-	Write-Host "Number of update files: $( $Files.Count )"
+	Write-Info "Number of update files: $( $Files.Count )"
 
 	$Files | Sort-Object -Property FullName |
 	Where-Object { $_.Length -gt 0 -and $_.Name.Length -gt 0 } |
 	ForEach-Object {
-		Write-Host ".. with file: $( $_.Name )"
+		Write-Info ".. with file: $( $_.Name )"
 
 		# -v ON_ERROR_STOP=1
 		& $Env:DBPSQLFILE -q -b -n --csv -f "$_"
@@ -339,7 +420,7 @@ function Update-DatabaseWithFiles {
 	$Filepaths |
 	Where-Object { $_.Length -gt 0 } |
 	ForEach-Object {
-		Write-Host ".. with file: $( $_ )"
+		Write-Info ".. with file: $( $_ )"
 
 		# -v ON_ERROR_STOP=1
 		& $Env:DBPSQLFILE -q -b -n --csv -f "$_"
@@ -347,7 +428,7 @@ function Update-DatabaseWithFiles {
 }
 
 function Prepare-VersionTable {
-	Write-Host "Preparing version table - extracting database objects"
+	Write-Info "Preparing version table - extracting database objects"
 
 	# Get configuration values
 	$formatsStr = if ($env:DBVERSIONTABLEFORMATS) { $env:DBVERSIONTABLEFORMATS } else { "json;md" }
@@ -363,7 +444,7 @@ function Prepare-VersionTable {
 	$formats = $formatsStr -split ';' | Where-Object { $_.Trim() } | ForEach-Object { $_.Trim().ToLower() }
 
 	if ($formats.Count -eq 0) {
-		Write-Host "No version table formats specified, using default: json, md"
+		Write-Info "No version table formats specified, using default: json, md"
 		$formats = @("json", "md")
 	}
 
@@ -378,10 +459,10 @@ function Prepare-VersionTable {
 	# Normalize markdown format
 	$formats = $formats | ForEach-Object { if ($_ -eq "md") { "markdown" } else { $_ } }
 
-	Write-Host "Version table configuration:"
-	Write-Host "  Formats: $($formats -join ', ')"
-	Write-Host "  Output folder: $outputFolder"
-	Write-Host "  Base filename: $baseFilename"
+	Write-Info "Version table configuration:"
+	Write-Info "  Formats: $($formats -join ', ')"
+	Write-Info "  Output folder: $outputFolder"
+	Write-Info "  Base filename: $baseFilename"
 
 	# Check if extract-db-objects.py exists
 	if (-not (Test-Path "extract-db-objects.py")) {
@@ -393,7 +474,7 @@ function Prepare-VersionTable {
 	if (-not (Test-Path $outputFolder)) {
 		try {
 			New-Item -ItemType Directory -Path $outputFolder -Force | Out-Null
-			Write-Host "Created output folder: $outputFolder"
+			Write-Info "Created output folder: $outputFolder"
 		}
 		catch {
 			Write-Error "Failed to create output folder: $_"
@@ -413,7 +494,7 @@ function Prepare-VersionTable {
 			$extension = if ($fmt -eq "markdown") { "md" } else { $fmt }
 			$outputFile = Join-Path $outputFolder "$baseFilename.$extension"
 
-			Write-Host "Generating $($fmt.ToUpper()) format: $outputFile"
+			Write-Info "Generating $($fmt.ToUpper()) format: $outputFile"
 
 			$result = & $pythonCmd "extract-db-objects.py" --format $fmt --output $outputFile 2>&1
 			if ($LASTEXITCODE -ne 0) {
@@ -433,7 +514,7 @@ function Prepare-VersionTable {
 
 		if ($generatedFiles.Count -gt 0) {
 			Write-Host "Version table preparation completed successfully" -ForegroundColor Green
-			Write-Host "Generated files: $($generatedFiles -join ', ')"
+			Write-Info "Generated files: $($generatedFiles -join ', ')"
 		}
 		else {
 			Write-Host "No files were generated" -ForegroundColor Yellow
@@ -454,15 +535,15 @@ function Exec-Sql {
 	Set-CurrentDatabase -databaseName $Env:DBDESTDB
 
 	if (-not [string]::IsNullOrEmpty($File)) {
-		Write-Host "Executing SQL file: $File"
+		Write-Info "Executing SQL file: $File"
 		& $Env:DBPSQLFILE -f "$File"
 	}
 	elseif (-not [string]::IsNullOrEmpty($Command)) {
-		Write-Host "Executing SQL command"
+		Write-Info "Executing SQL command"
 		& $Env:DBPSQLFILE -c "$Command"
 	}
 	else {
-		Write-Host "Opening interactive psql session against $Env:DBDESTDB ..."
+		Write-Info "Opening interactive psql session against $Env:DBDESTDB ..."
 		& $Env:DBPSQLFILE
 	}
 }
@@ -1057,45 +1138,101 @@ if (-not [string]::IsNullOrWhiteSpace($localEnvFilePath)) {
 	Prepare-Environment -envFilePath $localEnvFilePath
 }
 
+# Production confirmation
+function Confirm-Production {
+	$prodFlag = if ($Env:DBPRODENVIRONMENT) { $Env:DBPRODENVIRONMENT.Trim().ToLower() } else { "" }
+	if ($prodFlag -ne "true" -and $prodFlag -ne "1") {
+		return
+	}
+	if ($Yes) {
+		return
+	}
+
+	$opsCsv = $Operations -join ","
+	$sep = "=" * 50
+
+	Write-Host ""
+	Write-Host $sep -ForegroundColor Red
+	Write-Host "  PRODUCTION ENVIRONMENT - CONFIRMATION REQUIRED" -ForegroundColor Red
+	Write-Host $sep -ForegroundColor Red
+	Write-Host ""
+	if ($Environment) {
+		Write-Host "  Environment:  $Environment"
+	}
+	$pgHost = if ($Env:PGHOST) { $Env:PGHOST } else { "localhost" }
+	$pgPort = if ($Env:PGPORT) { $Env:PGPORT } else { "5432" }
+	$pgUser = if ($Env:PGUSER) { $Env:PGUSER } else { "<unset>" }
+	$destDb = if ($Env:DBDESTDB) { $Env:DBDESTDB } else { "<unset>" }
+	Write-Host "  Host:         ${pgHost}:${pgPort}"
+	Write-Host "  User:         $pgUser"
+	Write-Host "  Target DB:    $destDb"
+	Write-Host "  Operations:   $opsCsv"
+	if ($Operations -contains "execSql") {
+		if ($SqlFile) {
+			Write-Host "  SQL file:     $SqlFile"
+		}
+		elseif ($Sql) {
+			Write-Host "  SQL command:  $Sql"
+		}
+		else {
+			Write-Host "  SQL:          (interactive psql session)"
+		}
+	}
+	if ($Operations -contains "updateDatabase") {
+		Write-Host "  Migration range: $UpdateStartNumber -> $UpdateEndNumber"
+	}
+	Write-Host ""
+
+	$response = Read-Host '  Type "yes" to proceed (anything else aborts)'
+	Write-Host ""
+
+	if ($response.Trim().ToLower() -ne "yes") {
+		Write-Host "Production run aborted by user." -ForegroundColor Red
+		exit 1
+	}
+}
+
+Confirm-Production
+
 # Split the operation parameter for multiple operations in one go
 # Iterate through each script path
 foreach ($o in $Operations) {
-	Write-Host "processing: "$o
+	Write-Info "processing: "$o
 	switch ($o) {
   "recreateDatabase" {
-			Write-Host "Performing recreate operation..."
+			Write-Info "Performing recreate operation..."
 			Recreate-Database
   }
   "restoreDatabase" {
-			Write-Host "Performing restore operation..."
+			Write-Info "Performing restore operation..."
 			Restore-Database
   }
   "updateDatabase" {
-			Write-Host "Performing update operation..."
+			Write-Info "Performing update operation..."
 			Update-Database
   }
   "preUpdateScripts" {
-			Write-Host "Performing pre update operation..."
+			Write-Info "Performing pre update operation..."
 			Run-PreUpdateScripts
   }
   "postUpdateScripts" {
-			Write-Host "Performing post update operation..."
+			Write-Info "Performing post update operation..."
 			Run-PostUpdateScripts
   }
   "prepareVersionTable" {
-			Write-Host "Performing prepare version table operation..."
+			Write-Info "Performing prepare version table operation..."
 			Prepare-VersionTable
   }
   "execSql" {
-			Write-Host "Performing exec SQL operation..."
+			Write-Info "Performing exec SQL operation..."
 			Exec-Sql -File $SqlFile -Command $Sql
   }
   "runTests" {
-			Write-Host "Performing run tests operation..."
+			Write-Info "Performing run tests operation..."
 			Run-Tests -Filter $TestFilter -ShowDetail:$TestVerbose
   }
   "fullService" {
-			Write-Host "Performing full service operation for us, lazy boys..."
+			Write-Info "Performing full service operation for us, lazy boys..."
 			Recreate-Database
 			Restore-Database
 			Run-PreUpdateScripts

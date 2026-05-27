@@ -4,6 +4,8 @@ Debee - PostgreSQL Migration Orchestrator (Python Version)
 Pure orchestration script - all database logic lives in external SQL files
 """
 
+__version__ = "1.0.2"
+
 import os
 import sys
 import argparse
@@ -68,8 +70,11 @@ class TestResult:
 class DebeeOrchestrator:
     """PostgreSQL migration orchestrator"""
 
-    def __init__(self, environment: Optional[str] = None):
+    def __init__(self, environment: Optional[str] = None, silent: bool = False,
+                 assume_yes: bool = False):
         self.environment = environment
+        self.silent = silent
+        self.assume_yes = assume_yes
         self.env_vars: Dict[str, str] = {}
         self.update_start_number = -1
         self.update_end_number = -1
@@ -84,10 +89,14 @@ class DebeeOrchestrator:
 
     def print_success(self, message: str) -> None:
         """Print success message in green"""
+        if self.silent:
+            return
         print(f"{Colors.GREEN}{message}{Colors.NC}")
 
     def print_info(self, message: str) -> None:
         """Print info message"""
+        if self.silent:
+            return
         print(message)
 
     def set_env_var(self, key: str, value: str) -> None:
@@ -1010,6 +1019,52 @@ class DebeeOrchestrator:
 
         return all(r.passed for r in results)
 
+    def confirm_production(self, operations: List[Operation]) -> bool:
+        """If DBPRODENVIRONMENT is true, require typed 'yes' confirmation.
+        Returns True if execution should proceed, False if user aborted.
+        Bypassed by self.assume_yes. Output always visible regardless of silent."""
+        prod_flag = self.env_vars.get("DBPRODENVIRONMENT", "").strip().lower()
+        if prod_flag not in ("true", "1"):
+            return True
+        if self.assume_yes:
+            return True
+
+        ops_csv = ",".join(op.value for op in operations)
+        op_values = {op.value for op in operations}
+
+        sys.stdout.flush()
+        sep = "=" * 50
+        print(f"\n{Colors.RED}{sep}{Colors.NC}", file=sys.stderr)
+        print(f"{Colors.RED}  PRODUCTION ENVIRONMENT - CONFIRMATION REQUIRED{Colors.NC}", file=sys.stderr)
+        print(f"{Colors.RED}{sep}{Colors.NC}\n", file=sys.stderr)
+        if self.environment:
+            print(f"  Environment:  {self.environment}", file=sys.stderr)
+        print(f"  Host:         {self.env_vars.get('PGHOST', 'localhost')}:{self.env_vars.get('PGPORT', '5432')}", file=sys.stderr)
+        print(f"  User:         {self.env_vars.get('PGUSER', '<unset>')}", file=sys.stderr)
+        print(f"  Target DB:    {self.env_vars.get('DBDESTDB', '<unset>')}", file=sys.stderr)
+        print(f"  Operations:   {ops_csv}", file=sys.stderr)
+        if "execSql" in op_values:
+            if self.sql_file:
+                print(f"  SQL file:     {self.sql_file}", file=sys.stderr)
+            elif self.sql_command:
+                print(f"  SQL command:  {self.sql_command}", file=sys.stderr)
+            else:
+                print(f"  SQL:          (interactive psql session)", file=sys.stderr)
+        if "updateDatabase" in op_values:
+            print(f"  Migration range: {self.update_start_number} -> {self.update_end_number}", file=sys.stderr)
+        print("", file=sys.stderr)
+
+        try:
+            response = input('  Type "yes" to proceed (anything else aborts): ')
+        except EOFError:
+            response = ""
+        print("", file=sys.stderr)
+
+        if response.strip().lower() != "yes":
+            self.print_error("Production run aborted by user.")
+            return False
+        return True
+
     def execute_operation(self, operation: Operation) -> bool:
         """Execute a single operation"""
         self.print_info(f"Processing: {operation.value}")
@@ -1103,6 +1158,10 @@ class DebeeOrchestrator:
         if "DBPGRESTOREFILE" not in self.env_vars:
             self.set_env_var("DBPGRESTOREFILE", "pg_restore")
 
+        # Production confirmation
+        if not self.confirm_production(operations):
+            return False
+
         # Execute operations
         for operation in operations:
             if not self.execute_operation(operation):
@@ -1180,6 +1239,17 @@ Environment files:
     parser.add_argument('--no-color',
                         action='store_true',
                         help='Disable colored output')
+    parser.add_argument('-q', '--silent',
+                        action='store_true',
+                        help='Suppress orchestration messages (env loading, operation banners, '
+                             'final success). Warnings, errors, and psql output remain visible.')
+    parser.add_argument('-y', '--yes',
+                        action='store_true',
+                        help='Skip production confirmation prompt (required for automation when '
+                             'DBPRODENVIRONMENT=true is set in the env file).')
+    parser.add_argument('-V', '--version',
+                        action='version',
+                        version=f'debee.py {__version__}')
 
     args = parser.parse_args()
 
@@ -1197,7 +1267,8 @@ Environment files:
         return 1
 
     # Create orchestrator and run
-    orchestrator = DebeeOrchestrator(environment=args.environment)
+    orchestrator = DebeeOrchestrator(environment=args.environment, silent=args.silent,
+                                     assume_yes=args.yes)
 
     if orchestrator.run(operations, args.start_number, args.end_number,
                         sql_file=args.sql_file, sql_command=args.sql,
