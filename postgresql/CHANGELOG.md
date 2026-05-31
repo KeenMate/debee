@@ -5,6 +5,11 @@ All notable changes to the PostgreSQL database migration tools will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-05-31
+
+### Fixed
+- **PowerShell UTF-8 encoding**: `debee.ps1` now starts with a UTF-8 BOM (`EF BB BF`) so Windows PowerShell 5.1 decodes the script as UTF-8 instead of Windows-1252. Without the BOM, any non-ASCII content in the script (em-dashes, accented characters in help text or messages) was mangled at parse time, which surfaced as garbled console output and could break string comparisons. PowerShell 7+ already defaults to UTF-8 and is unaffected. `debee.sh` and `debee.py` versions bumped in lockstep — no behavioral change to those orchestrators.
+
 ## [1.0.2] - 2026-05-27
 
 ### Added

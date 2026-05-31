@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 
 [CmdletBinding(DefaultParameterSetName = "Run")]
 param (
@@ -25,7 +25,7 @@ param (
 	[switch]$Help
 )
 
-$DebeeVersion = "1.0.2"
+$DebeeVersion = "1.0.3"
 
 function Show-DebeeHelp {
 	Write-Host ""

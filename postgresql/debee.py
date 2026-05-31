@@ -4,7 +4,7 @@ Debee - PostgreSQL Migration Orchestrator (Python Version)
 Pure orchestration script - all database logic lives in external SQL files
 """
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 import os
 import sys
