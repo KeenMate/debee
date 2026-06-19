@@ -25,7 +25,7 @@ param (
 	[switch]$Help
 )
 
-$DebeeVersion = "1.0.3"
+$DebeeVersion = "1.0.4"
 
 function Show-DebeeHelp {
 	Write-Host ""
@@ -208,14 +208,11 @@ function Get-FilesByNumericPrefix {
 		[int]$EndNumber
 	)
 
-	if ($StartNumber -eq -1 -and [int]$Env:DBUPDATESTARTNUMBER -gt 0) {
-		$StartNumber = [int]$Env:DBUPDATESTARTNUMBER
-	}
-
-	if ($EndNumber -eq -1 -and [int]$Env:DBUPDATEENDNUMBER -ge 1) {
-		$EndNumber = [int]$Env:DBUPDATEENDNUMBER
-	}
-	Write-Warning "Scripts from: $StartNumber to: $EndNumber be run."
+	$rangeText = if ($StartNumber -eq -1 -and $EndNumber -eq -1) { "all" }
+		elseif ($EndNumber -eq -1) { "$StartNumber onwards" }
+		elseif ($StartNumber -eq -1) { "up to $EndNumber" }
+		else { "$StartNumber -> $EndNumber" }
+	Write-Warning "Scripts to run: $rangeText"
 	# Ensure StartNumber is less than or equal to EndNumber
 	if ($StartNumber -gt $EndNumber -and $EndNumber -ne -1) {
 		Write-Error "StartNumber ($StartNumber) cannot be greater than EndNumber ($EndNumber)."
@@ -1138,6 +1135,14 @@ if (-not [string]::IsNullOrWhiteSpace($localEnvFilePath)) {
 	Prepare-Environment -envFilePath $localEnvFilePath
 }
 
+# Resolve migration range: CLI param wins; otherwise fall back to env vars loaded above.
+if ($UpdateStartNumber -eq -1 -and [int]$Env:DBUPDATESTARTNUMBER -gt 0) {
+	$UpdateStartNumber = [int]$Env:DBUPDATESTARTNUMBER
+}
+if ($UpdateEndNumber -eq -1 -and [int]$Env:DBUPDATEENDNUMBER -ge 1) {
+	$UpdateEndNumber = [int]$Env:DBUPDATEENDNUMBER
+}
+
 # Production confirmation
 function Confirm-Production {
 	$prodFlag = if ($Env:DBPRODENVIRONMENT) { $Env:DBPRODENVIRONMENT.Trim().ToLower() } else { "" }
@@ -1179,7 +1184,11 @@ function Confirm-Production {
 		}
 	}
 	if ($Operations -contains "updateDatabase") {
-		Write-Host "  Migration range: $UpdateStartNumber -> $UpdateEndNumber"
+		$rangeText = if ($UpdateStartNumber -eq -1 -and $UpdateEndNumber -eq -1) { "all" }
+			elseif ($UpdateEndNumber -eq -1) { "$UpdateStartNumber onwards" }
+			elseif ($UpdateStartNumber -eq -1) { "up to $UpdateEndNumber" }
+			else { "$UpdateStartNumber -> $UpdateEndNumber" }
+		Write-Host "  Migration range: $rangeText"
 	}
 	Write-Host ""
 

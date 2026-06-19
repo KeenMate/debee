@@ -5,6 +5,14 @@ All notable changes to the PostgreSQL database migration tools will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-06-19
+
+### Fixed
+- **Migration range resolution in production confirmation**: When `DBPRODENVIRONMENT=true` was set, the confirmation banner displayed `Migration range: -1 -> -1` even if `DBUPDATESTARTNUMBER` / `DBUPDATEENDNUMBER` were set in the env file. The fallback from CLI args to env vars was only resolved inside the file-gatherer, which ran *after* the confirmation. Resolution is now performed once right after env files load, so `Confirm-Production` and the file-gatherer share the same values. CLI args still take precedence over env vars. Fixed in `debee.ps1`, `debee.sh`, and `debee.py`.
+
+### Changed
+- **Friendlier range display**: Migration range output in the production confirmation banner and the "Scripts to run" warning now reads as `all` (both unset), `78 onwards` (only start set), `up to 100` (only end set), or `78 -> 100` (both set), instead of leaking the internal `-1` sentinels. Applies to all three orchestrators.
+
 ## [1.0.3] - 2026-05-31
 
 ### Fixed

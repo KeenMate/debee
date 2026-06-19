@@ -4,7 +4,7 @@ Debee - PostgreSQL Migration Orchestrator (Python Version)
 Pure orchestration script - all database logic lives in external SQL files
 """
 
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 
 import os
 import sys
@@ -152,20 +152,15 @@ class DebeeOrchestrator:
 
     def get_files_by_numeric_prefix(self, start_number: int, end_number: int) -> List[Path]:
         """Get migration files within numeric range"""
-        # Use environment variables if parameters are -1
-        if start_number == -1 and self.env_vars.get("DBUPDATESTARTNUMBER"):
-            try:
-                start_number = int(self.env_vars["DBUPDATESTARTNUMBER"])
-            except ValueError:
-                pass
-
-        if end_number == -1 and self.env_vars.get("DBUPDATEENDNUMBER"):
-            try:
-                end_number = int(self.env_vars["DBUPDATEENDNUMBER"])
-            except ValueError:
-                pass
-
-        self.print_warning(f"Scripts from: {start_number} to: {end_number} will be run.")
+        if start_number == -1 and end_number == -1:
+            range_text = "all"
+        elif end_number == -1:
+            range_text = f"{start_number} onwards"
+        elif start_number == -1:
+            range_text = f"up to {end_number}"
+        else:
+            range_text = f"{start_number} -> {end_number}"
+        self.print_warning(f"Scripts to run: {range_text}")
 
         # Validate range
         if start_number > end_number and end_number != -1:
@@ -1051,7 +1046,16 @@ class DebeeOrchestrator:
             else:
                 print(f"  SQL:          (interactive psql session)", file=sys.stderr)
         if "updateDatabase" in op_values:
-            print(f"  Migration range: {self.update_start_number} -> {self.update_end_number}", file=sys.stderr)
+            start, end = self.update_start_number, self.update_end_number
+            if start == -1 and end == -1:
+                range_text = "all"
+            elif end == -1:
+                range_text = f"{start} onwards"
+            elif start == -1:
+                range_text = f"up to {end}"
+            else:
+                range_text = f"{start} -> {end}"
+            print(f"  Migration range: {range_text}", file=sys.stderr)
         print("", file=sys.stderr)
 
         try:
@@ -1151,6 +1155,18 @@ class DebeeOrchestrator:
         # Load local environment file if it exists
         if Path(local_env_file).exists():
             self.prepare_environment(local_env_file)
+
+        # Resolve migration range: CLI args win; otherwise fall back to env vars loaded above.
+        if self.update_start_number == -1 and self.env_vars.get("DBUPDATESTARTNUMBER"):
+            try:
+                self.update_start_number = int(self.env_vars["DBUPDATESTARTNUMBER"])
+            except ValueError:
+                pass
+        if self.update_end_number == -1 and self.env_vars.get("DBUPDATEENDNUMBER"):
+            try:
+                self.update_end_number = int(self.env_vars["DBUPDATEENDNUMBER"])
+            except ValueError:
+                pass
 
         # Set default tool paths if not defined
         if "DBPSQLFILE" not in self.env_vars:

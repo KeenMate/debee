@@ -3,7 +3,7 @@
 # Debee - PostgreSQL Migration Orchestrator (Bash Version)
 # Pure orchestration script - all database logic lives in external SQL files
 
-DEBEE_VERSION="1.0.3"
+DEBEE_VERSION="1.0.4"
 
 set -e  # Exit on error
 
@@ -106,16 +106,17 @@ get_files_by_numeric_prefix() {
     local start_num=$1
     local end_num=$2
 
-    # Use environment variables if parameters are -1
-    if [[ $start_num -eq -1 ]] && [[ -n "$DBUPDATESTARTNUMBER" ]] && [[ $DBUPDATESTARTNUMBER -gt 0 ]]; then
-        start_num=$DBUPDATESTARTNUMBER
+    local range_text
+    if [[ $start_num -eq -1 && $end_num -eq -1 ]]; then
+        range_text="all"
+    elif [[ $end_num -eq -1 ]]; then
+        range_text="${start_num} onwards"
+    elif [[ $start_num -eq -1 ]]; then
+        range_text="up to ${end_num}"
+    else
+        range_text="${start_num} -> ${end_num}"
     fi
-
-    if [[ $end_num -eq -1 ]] && [[ -n "$DBUPDATEENDNUMBER" ]] && [[ $DBUPDATEENDNUMBER -ge 1 ]]; then
-        end_num=$DBUPDATEENDNUMBER
-    fi
-
-    print_warning "Scripts from: $start_num to: $end_num will be run."
+    print_warning "Scripts to run: ${range_text}"
 
     # Validate range
     if [[ $start_num -gt $end_num ]] && [[ $end_num -ne -1 ]]; then
@@ -1267,6 +1268,14 @@ if [[ -f "$LOCAL_ENV_FILE" ]]; then
     prepare_environment "$LOCAL_ENV_FILE"
 fi
 
+# Resolve migration range: CLI flags win; otherwise fall back to env vars loaded above.
+if [[ $UPDATE_START_NUMBER -eq -1 ]] && [[ -n "$DBUPDATESTARTNUMBER" ]] && [[ $DBUPDATESTARTNUMBER -gt 0 ]]; then
+    UPDATE_START_NUMBER=$DBUPDATESTARTNUMBER
+fi
+if [[ $UPDATE_END_NUMBER -eq -1 ]] && [[ -n "$DBUPDATEENDNUMBER" ]] && [[ $DBUPDATEENDNUMBER -ge 1 ]]; then
+    UPDATE_END_NUMBER=$DBUPDATEENDNUMBER
+fi
+
 # Set default tool paths if not defined
 : ${DBPSQLFILE:=psql}
 : ${DBPGRESTOREFILE:=pg_restore}
@@ -1305,7 +1314,17 @@ confirm_production() {
         fi
     fi
     if [[ " ${OPERATIONS[*]} " == *" updateDatabase "* ]]; then
-        echo "  Migration range: ${UPDATE_START_NUMBER} -> ${UPDATE_END_NUMBER}" >&2
+        local range_text
+        if [[ $UPDATE_START_NUMBER -eq -1 && $UPDATE_END_NUMBER -eq -1 ]]; then
+            range_text="all"
+        elif [[ $UPDATE_END_NUMBER -eq -1 ]]; then
+            range_text="${UPDATE_START_NUMBER} onwards"
+        elif [[ $UPDATE_START_NUMBER -eq -1 ]]; then
+            range_text="up to ${UPDATE_END_NUMBER}"
+        else
+            range_text="${UPDATE_START_NUMBER} -> ${UPDATE_END_NUMBER}"
+        fi
+        echo "  Migration range: ${range_text}" >&2
     fi
     echo "" >&2
 
