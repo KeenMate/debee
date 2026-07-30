@@ -3,7 +3,7 @@
 # Debee - PostgreSQL Migration Orchestrator (Bash Version)
 # Pure orchestration script - all database logic lives in external SQL files
 
-DEBEE_VERSION="1.0.4"
+DEBEE_VERSION="1.0.5"
 
 set -e  # Exit on error
 

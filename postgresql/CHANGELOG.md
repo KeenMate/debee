@@ -5,6 +5,11 @@ All notable changes to the PostgreSQL database migration tools will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-07-30
+
+### Fixed
+- **`restoreDatabase` broken in `debee.py` for custom/dir archives**: The pg_restore format flag was built as a single string `"-F c"` (or `"-F d"`) and passed as one element of the `subprocess.run` argv list. Because the list form bypasses the shell, no whitespace tokenization happens — pg_restore received a single argument `-F c` and parsed the format as `" c"`, aborting with `unrecognized archive format " c"; please specify "c", "d", or "t"`. Changed to the attached form `-Fc` / `-Fd` (a single valid token). Only `debee.py` was affected: `debee.sh` and `debee.ps1` already pass `-F` and the format letter as separate argv tokens. Version bumped in lockstep across all three orchestrators; no behavioral change to `debee.sh` / `debee.ps1`.
+
 ## [1.0.4] - 2026-06-19
 
 ### Fixed

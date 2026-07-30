@@ -4,7 +4,7 @@ Debee - PostgreSQL Migration Orchestrator (Python Version)
 Pure orchestration script - all database logic lives in external SQL files
 """
 
-__version__ = "1.0.4"
+__version__ = "1.0.5"
 
 import os
 import sys
@@ -274,7 +274,7 @@ class DebeeOrchestrator:
                 return self.run_psql(backup_filepath)
 
             elif backup_type in ["dir", "custom"]:
-                format_flag = "-F d" if backup_type == "dir" else "-F c"
+                format_flag = "-Fd" if backup_type == "dir" else "-Fc"
                 self.print_info(f"Restoring from {backup_type}: {backup_filepath}")
                 self.set_current_database(dest_db)
 
