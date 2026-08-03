@@ -5,6 +5,11 @@ All notable changes to the PostgreSQL database migration tools will be documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-08-03
+
+### Added
+- **`--llm` reference flag**: New `--llm` flag (bash, Python) and `-Llm` switch (PowerShell) prints a single self-contained CLI reference document — concept, invocation for all three implementations, every operation, the `NNN_*.sql` naming convention, all options, the `.env` file resolution order, every environment variable, and the production-confirmation gate — designed to be pasted into an LLM/AI assistant as full context. Modeled on the `--llm` flag in the sibling `pure-admin-cli` project. The reference text is ASCII-only (no em-dashes or arrows) so it prints cleanly on Windows consoles regardless of code page, and is byte-for-byte identical across `debee.ps1`, `debee.sh`, and `debee.py`. Advertised in each script's short help. Version bumped to 1.1.0 across all three orchestrators.
+
 ## [1.0.5] - 2026-07-30
 
 ### Fixed

@@ -3,7 +3,7 @@
 # Debee - PostgreSQL Migration Orchestrator (Bash Version)
 # Pure orchestration script - all database logic lives in external SQL files
 
-DEBEE_VERSION="1.0.5"
+DEBEE_VERSION="1.1.0"
 
 set -e  # Exit on error
 
@@ -1165,6 +1165,7 @@ Options:
                                when DBPRODENVIRONMENT=true is set in the env file)
     -V, --version              Print version and exit
     -h, --help                 Show this help message
+    --llm                      Print full CLI reference for LLM/AI assistants and exit
 
 Examples:
     $0 -e prod -o fullService
@@ -1182,6 +1183,126 @@ Environment files:
     .debee.env                 Local default overrides
 
 EOF
+}
+
+# Show full LLM/AI reference document
+show_llm() {
+    echo "debee v$DEBEE_VERSION - PostgreSQL Migration Orchestrator"
+    cat << 'DEBEE_LLM_EOF'
+
+Cross-platform database migration runner for PostgreSQL. Three interchangeable implementations:
+  debee.ps1 (PowerShell, Windows-primary) | debee.sh (Bash, Linux/macOS) | debee.py (Python, cross-platform)
+
+CONCEPT
+
+debee is a pure orchestration layer: all database logic lives in external .sql files. It reads
+connection + behavior settings from .env files, then runs a sequence of operations (recreate /
+restore / migrate / test / document) against a target PostgreSQL database using the system `psql`
+and `pg_restore` binaries. It performs no DB logic of its own beyond invoking those SQL files.
+
+INVOCATION
+
+  PowerShell:  .\debee.ps1 -Operations <op>[,<op>...] [options]
+  Bash:        ./debee.sh   -o <op>[,<op>...] [options]
+  Python:      python debee.py -o <op>[,<op>...] [options]
+
+Run from the directory that holds your .env file, migration files (NNN_*.sql), and (as needed) the
+recreate script, backup file, tests/ folder, and extract-db-objects.py. Migration files and tests
+are discovered relative to the current working directory.
+
+OPERATIONS  (comma-separated; default: fullService)
+
+  recreateDatabase     Drop and recreate the target DB by running the SQL script in DBRECREATESCRIPT,
+                       connected to DBCONNECTDB. Destructive.
+  restoreDatabase      Restore the target DB from DBBACKUPFILE using pg_restore (or psql for plain
+                       SQL). Format set by DBBACKUPTYPE (custom/plain/dir/tar). Parallel jobs via
+                       DBRESTOREJOBCOUNT. Optionally creates the DB first when DBCREATEONRESTORE=true.
+  updateDatabase       Apply numbered migration files matching ^NNN_*.sql in the current directory,
+                       ascending, within the [start..end] range. Empty files are skipped.
+  preUpdateScripts     Run the semicolon-separated SQL files in DBPREUPDATESCRIPTS (before update).
+  postUpdateScripts    Run the semicolon-separated SQL files in DBPOSTUPDATESCRIPTS (after update).
+  prepareVersionTable  Extract DB objects via extract-db-objects.py and emit documentation in the
+                       formats from DBVERSIONTABLEFORMATS (json;md;csv;html) to DBVERSIONTABLEOUTPUTFOLDER.
+  execSql              Run ad-hoc SQL: inline via --sql / -Sql, or a file via --sql-file / -SqlFile.
+                       With neither, opens an interactive psql session against the target DB.
+  runTests             Run SQL test files / suites from the tests/ folder. Global ordering from
+                       tests/tests.json. Filter with --test-filter; show PASS lines with --test-verbose.
+  fullService          recreateDatabase + restoreDatabase + preUpdateScripts + updateDatabase +
+                       postUpdateScripts, in sequence. Destructive - recreates and restores the DB.
+
+MIGRATION FILE NAMING
+
+  Pattern: NNN_description.sql
+    NNN          exactly 3 digits (001, 060, 999) - the ordering/selection key
+    _            underscore separator
+    description  any text
+    .sql         required extension
+  Files not matching ^\d{3}_.*\.sql$ are ignored. The range is inclusive; -1 means unbounded on that
+  end (start=-1, end=-1 -> all files). Start must not exceed a non-(-1) end.
+
+OPTIONS  (PowerShell / Bash + Python)
+
+  -Operations        / -o, --operations      Comma-separated operations (default fullService)
+  -Environment       / -e, --environment      Load debee.<name>.env instead of debee.env
+  -UpdateStartNumber / -s, --start-number     First migration number (default: env DBUPDATESTARTNUMBER, else all)
+  -UpdateEndNumber   / -n, --end-number       Last migration number  (default: env DBUPDATEENDNUMBER, else all)
+  -SqlFile           / --sql-file             SQL file to run (execSql)
+  -Sql               / --sql                  Inline SQL to run (execSql)
+  -TestFilter        / --test-filter          Filter test files by pattern (runTests; default all)
+  -TestVerbose       / --test-verbose         Show all test output including PASS lines
+  -Silent, -q        / -q, --silent           Suppress orchestration messages; errors + psql output remain
+  -Yes, -y           / -y, --yes              Skip production confirmation (needed for automation when DBPRODENVIRONMENT=true)
+  -Version, -V       / -V, --version          Print version and exit
+  -Help, -h          / -h, --help             Show short help
+  -Llm               / --llm                  Print this reference document
+
+ENVIRONMENT FILES  (loaded from the current directory)
+
+  With -Environment/-e NAME:  debee.<NAME>.env   then  .debee.<NAME>.env   (local overrides, gitignored)
+  Without an environment:     debee.env          then  .debee.env
+  The base file must exist; the .local file is optional and layered on top (later wins).
+
+ENVIRONMENT VARIABLES
+
+  Connection (standard libpq):
+    PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE
+  Core:
+    DBDESTDB              Target database name (required by most operations)
+    DBCONNECTDB           Maintenance/connect DB used while dropping/creating (e.g. postgres)
+    DBRECREATESCRIPT      SQL file run by recreateDatabase
+  Restore:
+    DBBACKUPFILE          Path to the backup to restore
+    DBBACKUPTYPE          Backup format: custom (default) / plain / dir / tar
+    DBRESTOREJOBCOUNT     Parallel pg_restore jobs (-j)
+    DBCREATEONRESTORE     true -> create the DB before restoring
+  Migrations:
+    DBUPDATESTARTNUMBER   Default start number when -s/-UpdateStartNumber not given
+    DBUPDATEENDNUMBER     Default end number when -n/-UpdateEndNumber not given
+    DBPREUPDATESCRIPTS    Semicolon-separated SQL files for preUpdateScripts
+    DBPOSTUPDATESCRIPTS   Semicolon-separated SQL files for postUpdateScripts
+  Version table:
+    DBVERSIONTABLEFORMATS       Semicolon list: json;md;csv;html (default json;md)
+    DBVERSIONTABLEOUTPUTFOLDER  Output directory (default .)
+    DBVERSIONTABLEFILENAME      Base output filename (default db-objects)
+  Tooling / safety:
+    DBPSQLFILE            psql binary/path (default psql)
+    DBPGRESTOREFILE       pg_restore binary/path (default pg_restore)
+    DBPRODENVIRONMENT     true -> require typed 'yes' confirmation before running (bypass with -Yes/-y)
+
+PRODUCTION CONFIRMATION
+
+  When DBPRODENVIRONMENT=true, debee prints the host/user/target-DB and operation list and requires
+  the user to type 'yes' before proceeding. Pass -Yes/-y to skip it in automated/CI runs.
+
+EXAMPLES
+
+  .\debee.ps1 -Operations fullService -Environment prod
+  ./debee.sh      -e dev -o restoreDatabase,updateDatabase
+  python debee.py -o updateDatabase -s 10 -n 20
+  .\debee.ps1 -Operations execSql -Sql "SELECT version();" -Silent
+  ./debee.sh      -o execSql --sql-file script.sql
+  python debee.py -o runTests --test-filter connection
+DEBEE_LLM_EOF
 }
 
 # Parse command line arguments
@@ -1233,6 +1354,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -h|--help)
             show_usage
+            exit 0
+            ;;
+        --llm)
+            show_llm
             exit 0
             ;;
         *)

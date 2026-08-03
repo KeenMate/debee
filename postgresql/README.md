@@ -32,6 +32,7 @@ Debee **does** read configuration, execute your SQL scripts in order, call Postg
 - **Version table** — track every database object across migrations with JSON, Markdown, CSV, or interactive HTML output
 - **Cross-platform** — PowerShell, Bash, and Python implementations with identical interfaces
 - **Configuration-driven** — everything controlled through `.env` files with environment-specific overrides
+- **LLM reference** — `--llm` (`-Llm` in PowerShell) prints a single self-contained CLI reference for pasting into AI assistants
 
 ## Quick Start
 
